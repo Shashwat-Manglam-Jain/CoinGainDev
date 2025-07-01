@@ -14,68 +14,21 @@ import {
   ScrollView,
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import { Button, Card, TextInput, useTheme, Avatar, Badge } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemeContext } from '../ThemeContext';
 import ThemeToggle from '../components/ThemeToggle';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { useNavigation } from '@react-navigation/native';
+import { API_BASE_URL } from '../../utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 80;
 const CARD_HEIGHT = 280;
-
-// Dummy data
-const mockUser = {
-  name: 'Alice Johnson',
-  mobile: '+1-555-123-4567',
-  location: 'San Francisco, CA',
-  points: 325,
-  level: 'Gold',
-  joinDate: '2024-01-15',
-};
-
-const mockAdmin = {
-  name: 'Emma Smith',
-  uniqueCode: 'ADM789',
-};
-
-const mockRewards = [
-  { _id: '1', name: 'Amazon Gift Card', price: 100, pointsRequired: 100, image: 'https://via.placeholder.com/300x200?text=Gift+Card', tag: 'Popular' },
-  { _id: '2', name: 'Free Coffee Voucher', price: 50, pointsRequired: 50, image: 'https://via.placeholder.com/300x200?text=Coffee', tag: 'New' },
-  { _id: '3', name: 'Movie Tickets', price: 200, pointsRequired: 150, image: 'https://via.placeholder.com/300x200?text=Movie', tag: '' },
-  { _id: '4', name: 'Headphones', price: 500, pointsRequired: 400, image: 'https://via.placeholder.com/300x200?text=Headphones', tag: 'Popular' },
-  { _id: '5', name: 'Spa Voucher', price: 300, pointsRequired: 250, image: 'https://via.placeholder.com/300x200?text=Spa', tag: '' },
-  { _id: '6', name: 'Fitness Tracker', price: 1000, pointsRequired: 800, image: 'https://via.placeholder.com/300x200?text=Fitness', tag: 'New' },
-];
-
-const mockNotifications = [
-  { _id: '1', message: 'You earned a Free Coffee Voucher!', createdAt: '2025-06-30T10:00:00Z', read: false, type: 'reward_achieved', rewardId: { name: 'Free Coffee Voucher' } },
-  { _id: '2', message: 'Redemption for Amazon Gift Card approved', createdAt: '2025-06-29T15:30:00Z', read: true, type: 'redemption_approved', rewardId: { name: 'Amazon Gift Card' } },
-  { _id: '3', message: 'New reward added: Spa Voucher', createdAt: '2025-06-28T09:00:00Z', read: false, type: 'system', rewardId: null },
-  { _id: '4', message: 'Your redemption for Movie Tickets is pending', createdAt: '2025-06-27T12:00:00Z', read: false, type: 'redemption_pending', rewardId: { name: 'Movie Tickets' } },
-  { _id: '5', message: 'Earned 20 points for Daily Login', createdAt: '2025-06-26T08:00:00Z', read: true, type: 'points_earned', rewardId: null },
-  { _id: '6', message: 'Redemption for Headphones rejected', createdAt: '2025-06-25T14:00:00Z', read: true, type: 'redemption_rejected', rewardId: { name: 'Headphones' } },
-  { _id: '7', message: 'Invite a friend to earn 50 points!', createdAt: '2025-06-24T11:00:00Z', read: false, type: 'system', rewardId: null },
-  { _id: '8', message: 'Level up! You’re now Gold tier', createdAt: '2025-06-23T16:00:00Z', read: true, type: 'level_up', rewardId: null },
-];
-
-const mockRedemptions = [
-  { _id: '1', rewardId: { name: 'Amazon Gift Card', image: 'https://via.placeholder.com/80?text=Gift+Card' }, redeemedAt: '2025-06-30T10:00:00Z', status: 'approved' },
-  { _id: '2', rewardId: { name: 'Free Coffee Voucher', image: 'https://via.placeholder.com/80?text=Coffee' }, redeemedAt: '2025-06-29T15:30:00Z', status: 'pending' },
-  { _id: '3', rewardId: { name: 'Movie Tickets', image: 'https://via.placeholder.com/80?text=Movie' }, redeemedAt: '2025-06-28T09:00:00Z', status: 'pending' },
-  { _id: '4', rewardId: { name: 'Headphones', image: 'https://via.placeholder.com/80?text=Headphones' }, redeemedAt: '2025-06-27T12:00:00Z', status: 'rejected' },
-  { _id: '5', rewardId: { name: 'Spa Voucher', image: 'https://via.placeholder.com/80?text=Spa' }, redeemedAt: '2025-06-26T08:00:00Z', status: 'approved' },
-];
-
-const mockCoinGainActivities = [
-  { id: '1', name: 'Daily Login', description: 'Log in daily to earn bonus points', points: 15, maxPoints: 20, category: 'Daily' },
-  { id: '2', name: 'Refer a Friend', description: 'Invite a friend to join and earn points', points: 75, maxPoints: 100, category: 'Social' },
-  { id: '3', name: 'Complete Profile', description: 'Fill out your profile details', points: 40, maxPoints: 50, category: 'Profile' },
-  { id: '4', name: 'Share on Social Media', description: 'Share your achievements on social media', points: 20, maxPoints: 30, category: 'Social' },
-  { id: '5', name: 'Weekly Challenge', description: 'Complete the weekly challenge tasks', points: 60, maxPoints: 100, category: 'Challenge' },
-  { id: '6', name: 'Survey Participation', description: 'Participate in user surveys', points: 25, maxPoints: 50, category: 'Engagement' },
-];
 
 const ButtonText = ({ children, style }) => (
   <Text
@@ -99,6 +52,7 @@ const ButtonText = ({ children, style }) => (
 export default function UserDashboard() {
   const { colors } = useTheme();
   const { isDarkMode } = useContext(ThemeContext);
+  const navigation = useNavigation();
   const [currentTab, setCurrentTab] = useState('profile');
   const [searchReward, setSearchReward] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -111,6 +65,244 @@ export default function UserDashboard() {
   const [isPaused, setIsPaused] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [user, setUser] = useState(null);
+  const [admin, setAdmin] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [redemptions, setRedemptions] = useState([]);
+  const [rewards, setRewards] = useState([]);
+
+  // Fetch user data from AsyncStorage or API
+  const fetchUser = useCallback(async (id) => {
+    try {
+      setLoading(true);
+      const storedUser = await AsyncStorage.getItem('userInfo');
+      let userData = storedUser ? JSON.parse(storedUser) : {};
+      setUser({
+        _id: userData._id || null,
+        name: userData.name || null,
+        mobile: userData.mobile || null,
+        location: userData.location || null,
+        points: userData.points || 0,
+        createdAt: userData.createdAt || null,
+        adminId: userData.adminId || null,
+      });
+
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      const response = await axios.get(`${API_BASE_URL}/Userfetch/user/${id}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      const fetchedUser = response.data || {};
+      const updatedUser = {
+        _id: fetchedUser._id || null,
+        name: fetchedUser.name || null,
+        mobile: fetchedUser.mobile || null,
+        location: fetchedUser.location || null,
+        points: fetchedUser.points || 0,
+        createdAt: fetchedUser.createdAt || null,
+        adminId: fetchedUser.adminId || null,
+      };
+      setUser(updatedUser);
+      await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error('Fetch user error:', error.message);
+      Alert.alert('Error', 'Failed to load user data. Using local data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch admin data
+  const fetchAdmin = useCallback(async (adminId) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      if (!adminId) throw new Error('No admin ID provided');
+      const response = await axios.get(`${API_BASE_URL}/Userfetch/admin/${adminId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      const fetchedAdmin = response.data || {};
+      console.log("data of fetch admin :---------->>>>>>>> "+response.data );
+      
+      setAdmin({
+        name: fetchedAdmin.name || null,
+        uniqueCode: fetchedAdmin.uniqueCode || null,
+      });
+    } catch (error) {
+      console.error('Fetch admin error:', error.message);
+      setAdmin({ name: null, uniqueCode: null });
+      Alert.alert('Error', 'Failed to load admin data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch rewards
+  const fetchReward = useCallback(async (adminId) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      if (!adminId) throw new Error('No admin ID provided');
+      const response = await axios.get(`${API_BASE_URL}/datafetch/rewards/${adminId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      setRewards(response.data || []);
+    } catch (error) {
+      console.error('Fetch rewards error:', error.message);
+      setRewards([]);
+      Alert.alert('Error', 'Failed to load rewards.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch notifications
+  const fetchNotifications = useCallback(async (userId) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      const response = await axios.get(`${API_BASE_URL}/Userfetch/notifications/${userId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      setNotifications(response.data || []);
+    } catch (error) {
+      console.error('Fetch notifications error:', error.message);
+      Alert.alert('Error', 'Failed to load notifications.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch redemptions
+  const fetchRedemptions = useCallback(async (userId) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      const response = await axios.get(`${API_BASE_URL}/Userfetch/redeem/${userId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      setRedemptions(response.data || []);
+    } catch (error) {
+      console.error('Fetch redemptions error:', error.message);
+      Alert.alert('Error', 'Failed to load redemptions.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Save user
+  const saveUser = useCallback(async (updatedUser) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      await axios.put(
+        `${API_BASE_URL}/Userfetch/user/${updatedUser._id}`,
+        updatedUser,
+        { headers: { Authorization: `Bearer ${userToken}` } }
+      );
+      setUser(updatedUser);
+      await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error('Save user error:', error.message);
+      Alert.alert('Error', 'Failed to save user data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Save notifications
+  const saveNotifications = useCallback(async (newNotifications) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+      if (!userToken) throw new Error('No user token found');
+      await axios.post(
+        `${API_BASE_URL}/Userfetch/notifications`,
+        { userId: userData._id, notifications: newNotifications },
+        { headers: { Authorization: `Bearer ${userToken}` } }
+      );
+      setNotifications(newNotifications);
+      await AsyncStorage.setItem('notifications', JSON.stringify(newNotifications));
+    } catch (error) {
+      console.error('Save notifications error:', error.message);
+      Alert.alert('Error', 'Failed to save notifications.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Save redemptions
+  const saveRedemptions = useCallback(async (rewardId) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+      const reward = rewards.find((r) => r._id === rewardId);
+      if (!reward) throw new Error('Reward not found');
+      if (userData.points < reward.pointsRequired) throw new Error('Insufficient points');
+      const newRedemption = {
+        _id: `${Date.now()}`,
+        rewardId: { _id: reward._id, name: reward.name, image: reward.image },
+        redeemedAt: new Date().toISOString(),
+        status: 'pending',
+      };
+      await axios.post(
+        `${API_BASE_URL}/Userfetch/redeem`,
+        { userId: userData._id, redemption: newRedemption },
+        { headers: { Authorization: `Bearer ${userToken}` } }
+      );
+      const updatedUser = { ...userData, points: userData.points - reward.pointsRequired };
+      await Promise.all([
+        saveUser(updatedUser),
+        setRedemptions([...redemptions, newRedemption]),
+        AsyncStorage.setItem('redemptions', JSON.stringify([...redemptions, newRedemption])),
+      ]);
+    } catch (error) {
+      console.error('Save redemptions error:', error.message);
+      Alert.alert('Error', error.message || 'Failed to save redemptions.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, rewards, redemptions, saveUser]);
+
+  // Mark all notifications as read
+  const handleMarkAllRead = useCallback(() => {
+    const updatedNotifications = notifications.map((n) => ({ ...n, read: true }));
+    saveNotifications(updatedNotifications);
+  }, [notifications, saveNotifications]);
+
+  // Initial data load
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+        console.log(userData);
+        
+        if (userData._id) {
+          await Promise.all([
+            fetchUser(userData._id),
+            fetchAdmin(userData.adminId),
+            fetchReward(userData.adminId),
+            fetchNotifications(userData._id),
+            fetchRedemptions(userData._id),
+          ]);
+        } else {
+          Alert.alert('Error', 'No user data found. Please log in.');
+          navigation.replace('Login');
+        }
+      } catch (error) {
+        console.error('Initial data load error:', error.message);
+        Alert.alert('Error', 'Failed to load initial data.');
+      }
+    };
+    loadData();
+  }, [fetchUser, fetchAdmin, fetchReward, fetchNotifications, fetchRedemptions, navigation]);
 
   // Animation for cards
   useEffect(() => {
@@ -140,8 +332,8 @@ export default function UserDashboard() {
   // Auto-scroll for rewards carousel
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!isPaused && mockRewards.length > 0) {
-        const nextIndex = (carouselIndex + 1) % mockRewards.length;
+      if (!isPaused && rewards.length > 0) {
+        const nextIndex = (carouselIndex + 1) % rewards.length;
         scrollRef.current?.scrollTo({
           x: nextIndex * CARD_WIDTH,
           animated: true,
@@ -150,7 +342,7 @@ export default function UserDashboard() {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [carouselIndex, isPaused]);
+  }, [carouselIndex, isPaused, rewards.length]);
 
   const handleTouchStart = () => setIsPaused(true);
   const handleTouchEnd = () => setIsPaused(false);
@@ -161,70 +353,150 @@ export default function UserDashboard() {
 
   const handleLogout = useCallback(() => {
     setModalMessage('Are you sure you want to log out?');
-    setModalAction(() => () => {
-      setModalVisible(false);
-      // Add logout logic here
+    setModalAction(() => async () => {
+      try {
+        await AsyncStorage.clear();
+        navigation.replace('Login');
+        Alert.alert('Success', 'Logged out successfully.');
+      } catch (error) {
+        Alert.alert('Error', 'Failed to log out.');
+        console.error('Logout error:', error);
+      }
     });
     setModalVisible(true);
-  }, []);
+  }, [navigation]);
 
   const handleToggleRewardHistory = useCallback(() => {
     setShowRewardHistory((prev) => !prev);
   }, []);
 
   const handleCardPress = useCallback(() => {}, []);
-  const handleClearNotification = useCallback(() => {}, []);
-  const handleClearRedemption = useCallback(() => {}, []);
-  const handleRedeem = useCallback((rewardName) => {
-    setModalMessage(`Confirm redemption of ${rewardName}?`);
-    setModalAction(() => () => {
-      setModalVisible(false);
-      // Add redemption logic here
-    });
-    setModalVisible(true);
-  }, []);
+
+  const handleClearNotification = useCallback(
+    (notificationId) => {
+      const updatedNotifications = notifications.filter((n) => n._id !== notificationId);
+      saveNotifications(updatedNotifications);
+    },
+    [notifications, saveNotifications]
+  );
+
+  const handleClearRedemption = useCallback(
+    (redemptionId) => {
+      const updatedRedemptions = redemptions.filter((r) => r._id !== redemptionId);
+      const newNotification = {
+        _id: `${Date.now()}`,
+        message: 'Redemption cancelled successfully.',
+        createdAt: new Date().toISOString(),
+        read: false,
+        type: 'redemption_cancelled',
+        rewardId: null,
+      };
+      Promise.all([
+        saveRedemptions(updatedRedemptions),
+        saveNotifications([...notifications, newNotification]),
+      ]).catch((error) => {
+        Alert.alert('Error', 'Failed to cancel redemption.');
+        console.error('Clear redemption error:', error);
+      });
+    },
+    [redemptions, notifications, saveRedemptions, saveNotifications]
+  );
+
+  const handleRedeem = useCallback(
+    (reward) => {
+      setModalMessage(`Confirm redemption of ${reward.name}?`);
+      setModalAction(() => async () => {
+        try {
+          await saveRedemptions(reward._id);
+          setModalVisible(false);
+          Alert.alert('Success', 'Redemption request submitted.');
+        } catch (error) {
+          setModalVisible(false);
+          Alert.alert('Error', 'Failed to process redemption.');
+          console.error('Redeem error:', error);
+        }
+      });
+      setModalVisible(true);
+    },
+    [saveRedemptions]
+  );
 
   const renderContent = () => {
     switch (currentTab) {
       case 'profile':
         return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
+          <Animated.View style={[styles.tabContent, { opacity: fadeAnim ,position:'relative',bottom:28}]}>
+             <Animated.View
+        style={[
+          styles.header,
+          {
+            backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: colors.text }]}>Coin Gain</Text>
+        <View style={styles.headerButtons}>
+          <ThemeToggle style={styles.toggle} />
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <Button
+              mode="contained"
+              onPress={handleLogout}
+              
+              buttonColor={colors.error}
+              textColor="#FFFFFF"
+              contentStyle={{ paddingVertical: 6 }}
+              onPressIn={() => {
+                Animated.timing(scaleAnim, {
+                  toValue: 0.95,
+                  duration: 100,
+                  useNativeDriver: true,
+                }).start();
+              }}
+              onPressOut={() => {
+                Animated.timing(scaleAnim, {
+                  toValue: 1,
+                  duration: 100,
+                  useNativeDriver: true,
+                }).start();
+              }}
+            >
+              <ButtonText>Logout</ButtonText>
+            </Button>
+          </Animated.View>
+        </View>
+      </Animated.View>
             <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-              <View style={[styles.cardGradient, { backgroundColor: isDarkMode ? '#3A3A3A' : '#F5F5F5' }]} />
               <Card.Title
                 title="Your Profile"
                 titleStyle={[styles.cardTitle, { color: colors.text }]}
                 left={() => (
                   <Avatar.Text
                     size={48}
-                    label={mockUser.name?.charAt(0) || 'U'}
+                    label={user?.name?.charAt(0) || 'U'}
                     style={{ backgroundColor: colors.primary, marginRight: 12 }}
                   />
                 )}
               />
               <Card.Content>
                 <Text style={[styles.cardText, { color: colors.text, fontWeight: 'bold' }]}>
-                  {mockUser.name || 'Unknown'}
+                  {user?.name || 'Unknown'}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.text }]}>
-                  Mobile: {mockUser.mobile || 'Unknown'}
+                  Mobile: {user?.mobile || 'Unknown'}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.text }]}>
-                  Location: {mockUser.location || 'Unknown'}
+                  Location: {user?.location || 'Unknown'}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.primary, fontWeight: 'bold' }]}>
-                  Points: {mockUser.points ?? 0}
+                  Points: {user?.points ?? 0}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.text }]}>
-                  Level: {mockUser.level || 'N/A'}
-                </Text>
-                <Text style={[styles.cardText, { color: colors.text }]}>
-                  Joined: {new Date(mockUser.joinDate).toLocaleDateString()}
+                  Joined: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
                 </Text>
               </Card.Content>
             </View>
             <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-              <View style={[styles.cardGradient, { backgroundColor: isDarkMode ? '#3A3A3A' : '#F5F5F5' }]} />
               <Card.Title
                 title="Your Stats"
                 titleStyle={[styles.cardTitle, { color: colors.text }]}
@@ -241,19 +513,13 @@ export default function UserDashboard() {
                   <View style={styles.statItem}>
                     <MaterialIcons name="star" size={28} color={colors.primary} style={styles.statIcon} />
                     <Text style={[styles.cardText, { color: colors.text }]}>
-                      Points Earned: {mockUser.points}
+                      Points Earned: {user?.points ?? 0}
                     </Text>
                   </View>
                   <View style={styles.statItem}>
                     <MaterialCommunityIcons name="gift" size={28} color={colors.primary} style={styles.statIcon} />
                     <Text style={[styles.cardText, { color: colors.text }]}>
-                      Rewards Redeemed: {mockRedemptions.filter((r) => r.status === 'approved').length}
-                    </Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <MaterialIcons name="check-circle" size={28} color={colors.primary} style={styles.statIcon} />
-                    <Text style={[styles.cardText, { color: colors.text }]}>
-                      Activities Completed: {mockCoinGainActivities.filter((a) => a.points >= a.maxPoints).length}
+                      Rewards Redeemed: {redemptions.filter((r) => r.status === 'approved').length}
                     </Text>
                   </View>
                 </View>
@@ -274,8 +540,8 @@ export default function UserDashboard() {
                     setCarouselIndex(newIndex);
                   }}
                 >
-                  {mockRewards.length > 0 ? (
-                    mockRewards.map((item) => (
+                  {rewards.length > 0 ? (
+                    rewards.map((item) => (
                       <ImageBackground
                         key={item._id}
                         source={{ uri: item.image }}
@@ -313,9 +579,8 @@ export default function UserDashboard() {
                 </ScrollView>
               </TouchableWithoutFeedback>
             </View>
-            {mockAdmin && (
+            {admin && (
               <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-                <View style={[styles.cardGradient, { backgroundColor: isDarkMode ? '#3A3A3A' : '#F5F5F5' }]} />
                 <Card.Title
                   title="Assigned Admin"
                   titleStyle={[styles.cardTitle, { color: colors.text }]}
@@ -329,10 +594,10 @@ export default function UserDashboard() {
                 />
                 <Card.Content>
                   <Text style={[styles.cardText, { color: colors.text }]}>
-                    Admin: {mockAdmin.name || 'Unknown'}
+                    Admin: {admin.name || 'Unknown'}
                   </Text>
                   <Text style={[styles.cardText, { color: colors.text }]}>
-                    Unique Code: {mockAdmin.uniqueCode || 'N/A'}
+                    Unique Code: {admin.uniqueCode || 'N/A'}
                   </Text>
                 </Card.Content>
               </View>
@@ -353,12 +618,12 @@ export default function UserDashboard() {
               theme={{ colors: { text: colors.text, primary: colors.primary } }}
             />
             <FlatList
-              data={mockRewards.filter((reward) =>
+              data={rewards.filter((reward) =>
                 reward.name.toLowerCase().includes(searchReward.toLowerCase())
               )}
               keyExtractor={(item) => item._id}
               renderItem={({ item }) => {
-                const pointsEarned = mockUser.points; // Use user points for progress
+                const pointsEarned = user?.points ?? 0;
                 const pointsRequired = item.pointsRequired || 100;
                 const percentage = Math.min((pointsEarned / pointsRequired) * 100, 100);
                 const remainingPoints = Math.max(pointsRequired - pointsEarned, 0);
@@ -371,7 +636,6 @@ export default function UserDashboard() {
                     style={{ transform: [{ scale: 1 }] }}
                   >
                     <View style={[styles.rewardCard, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-                      <View style={[styles.cardGradient, { backgroundColor: isDarkMode ? '#3A3A3A' : '#F5F5F5' }]} />
                       <Card.Content>
                         {item.tag && (
                           <Badge
@@ -400,13 +664,13 @@ export default function UserDashboard() {
                         <View style={styles.progressContainer}>
                           <View style={styles.progressBar}>
                             <Animated.View
-                              style={[
-                                styles.progressFill,
-                                {
-                                  width: `${percentage}%`,
-                                  backgroundColor: isAchieved ? '#2196F3' : '#4CAF50',
-                                },
-                              ]}
+                            style={[
+                              styles.progressFill,
+                              {
+                                width: `${percentage}%`,
+                                backgroundColor: isAchieved ? '#2196F3' : '#4CAF50',
+                              },
+                            ]}
                             />
                           </View>
                           <Text style={[styles.progressText, { color: colors.text }]}>
@@ -429,7 +693,7 @@ export default function UserDashboard() {
                           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                             <Button
                               mode="contained"
-                              onPress={() => handleRedeem(item.name)}
+                              onPress={() => handleRedeem(item)}
                               style={styles.redeemButton}
                               buttonColor={colors.primary}
                               textColor="#FFFFFF"
@@ -466,8 +730,14 @@ export default function UserDashboard() {
               windowSize={5}
               removeClippedSubviews={true}
             />
+          </Animated.View>
+        );
+      case 'history':
+        return (
+          <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Reward History</Text>
             <View style={styles.rewardHistoryHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Reward History</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Redemptions</Text>
               <TouchableOpacity
                 style={styles.toggleButton}
                 onPress={handleToggleRewardHistory}
@@ -481,12 +751,11 @@ export default function UserDashboard() {
             {showRewardHistory && (
               <FlatList
                 key={`reward-history-${showRewardHistory}`}
-                data={mockRedemptions}
+                data={redemptions}
                 keyExtractor={(item) => item._id}
                 renderItem={({ item }) => (
                   <TouchableOpacity onPress={handleCardPress} activeOpacity={0.8}>
                     <View style={[styles.historyItem, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-                      <View style={[styles.cardGradient, { backgroundColor: isDarkMode ? '#3A3A3A' : '#F5F5F5' }]} />
                       <Card.Content>
                         {item.rewardId?.image && (
                           <Image
@@ -497,7 +766,7 @@ export default function UserDashboard() {
                           />
                         )}
                         <Text style={[styles.historyName, { color: colors.text }]}>
-                          {item.rewardId?.name}
+                          {item.rewardId?.name || 'Unknown'}
                         </Text>
                         <Text style={[styles.historyDetails, { color: colors.text }]}>
                           Redeemed: {new Date(item.redeemedAt).toLocaleString()} | Status: {item.status}
@@ -505,7 +774,7 @@ export default function UserDashboard() {
                         {item.status === 'pending' && (
                           <Button
                             mode="outlined"
-                            onPress={handleClearRedemption}
+                            onPress={() => handleClearRedemption(item._id)}
                             textColor={colors.error}
                             style={styles.clearButton}
                           >
@@ -525,9 +794,40 @@ export default function UserDashboard() {
                 removeClippedSubviews={true}
               />
             )}
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Notifications</Text>
+          </Animated.View>
+        );
+      case 'notifications':
+        return (
+          <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
+            <View style={styles.rewardHistoryHeader}>
+              <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
+              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <Button
+                  mode="outlined"
+                  onPress={handleMarkAllRead}
+                  style={styles.markAllReadButton}
+                  textColor={colors.primary}
+                  onPressIn={() => {
+                    Animated.timing(scaleAnim, {
+                      toValue: 0.95,
+                      duration: 100,
+                      useNativeDriver: true,
+                    }).start();
+                  }}
+                  onPressOut={() => {
+                    Animated.timing(scaleAnim, {
+                      toValue: 1,
+                      duration: 100,
+                      useNativeDriver: true,
+                    }).start();
+                  }}
+                >
+                  <ButtonText>Mark All Read</ButtonText>
+                </Button>
+              </Animated.View>
+            </View>
             <FlatList
-              data={mockNotifications}
+              data={notifications}
               keyExtractor={(item) => item._id}
               renderItem={({ item }) => (
                 <View
@@ -545,7 +845,7 @@ export default function UserDashboard() {
                   ]}
                 >
                   <Avatar.Icon
-                    size='36'
+                    size={36}
                     icon={item.read ? 'bell-outline' : 'bell'}
                     style={{
                       backgroundColor: item.read ? colors.secondary : colors.primary,
@@ -562,7 +862,7 @@ export default function UserDashboard() {
                   </View>
                   <Button
                     mode="text"
-                    onPress={handleClearNotification}
+                    onPress={() => handleClearNotification(item._id)}
                     textColor={colors.error}
                     style={styles.clearButton}
                   >
@@ -580,97 +880,12 @@ export default function UserDashboard() {
             />
           </Animated.View>
         );
-      case 'coin-gain':
-        return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Earn More Coins</Text>
-            <FlatList
-              data={mockCoinGainActivities}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const progress = Math.min((item.points / item.maxPoints) * 100, 100);
-                return (
-                  <TouchableOpacity onPress={handleCardPress} activeOpacity={0.8}>
-                    <View style={[styles.activityCard, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-                      <View style={[styles.cardGradient, { backgroundColor: isDarkMode ? '#3A3A3A' : '#F5F5F5' }]} />
-                      <Card.Content>
-                        <Avatar.Icon
-                          size={48}
-                          icon={item.category === 'Daily' ? 'calendar' : item.category === 'Social' ? 'share' : 'star'}
-                          style={{ backgroundColor: colors.primary, marginBottom: 12 }}
-                        />
-                        <Text style={[styles.activityName, { color: colors.text }]}>
-                          {item.name}
-                        </Text>
-                        <Text style={[styles.activityDetails, { color: colors.text }]}>
-                          {item.description}
-                        </Text>
-                        <Text style={[styles.activityPoints, { color: colors.primary }]}>
-                          +{item.points} Points
-                        </Text>
-                        <View style={styles.progressContainer}>
-                          <View style={styles.progressBar}>
-                            <Animated.View
-                              style={[
-                                styles.progressFill,
-                                {
-                                  width: `${progress}%`,
-                                  backgroundColor: colors.primary,
-                                },
-                              ]}
-                            />
-                          </View>
-                          <Text style={[styles.progressText, { color: colors.text }]}>
-                            {item.points}/{item.maxPoints} points ({progress.toFixed(1)}%)
-                          </Text>
-                        </View>
-                        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                          <Button
-                            mode="contained"
-                            onPress={() => {}}
-                            style={styles.actionButton}
-                            buttonColor={colors.primary}
-                            textColor="#FFFFFF"
-                            contentStyle={{ paddingVertical: 6 }}
-                            onPressIn={() => {
-                              Animated.timing(scaleAnim, {
-                                toValue: 0.95,
-                                duration: 100,
-                                useNativeDriver: true,
-                              }).start();
-                            }}
-                            onPressOut={() => {
-                              Animated.timing(scaleAnim, {
-                                toValue: 1,
-                                duration: 100,
-                                useNativeDriver: true,
-                              }).start();
-                            }}
-                          >
-                            <ButtonText>Take Action</ButtonText>
-                          </Button>
-                        </Animated.View>
-                      </Card.Content>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={() => (
-                <Text style={[styles.emptyText, { color: colors.text }]}>No activities available.</Text>
-              )}
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
-              windowSize={5}
-              removeClippedSubviews={true}
-            />
-          </Animated.View>
-        );
       default:
         return null;
     }
   };
 
-  const unreadNotifications = mockNotifications.filter((n) => !n.read).length;
+  const unreadNotifications = notifications.filter((n) => !n.read).length;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0A0A0A' : '#F0F4F8' }]}>
@@ -743,48 +958,9 @@ export default function UserDashboard() {
           </View>
         </View>
       </Modal>
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.text }]}>Coin Gain</Text>
-        <View style={styles.headerButtons}>
-          <ThemeToggle style={styles.toggle} />
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <Button
-              mode="contained"
-              onPress={handleLogout}
-              style={styles.logoutButton}
-              buttonColor={colors.error}
-              textColor="#FFFFFF"
-              contentStyle={{ paddingVertical: 6 }}
-              onPressIn={() => {
-                Animated.timing(scaleAnim, {
-                  toValue: 0.95,
-                  duration: 100,
-                  useNativeDriver: true,
-                }).start();
-              }}
-              onPressOut={() => {
-                Animated.timing(scaleAnim, {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }).start();
-              }}
-            >
-              <ButtonText>Logout</ButtonText>
-            </Button>
-          </Animated.View>
-        </View>
-      </Animated.View>
+     
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: 80 }]}
+        contentContainerStyle={[styles.scrollContent]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -799,7 +975,7 @@ export default function UserDashboard() {
           },
         ]}
       >
-        {['profile', 'rewards', 'coin-gain'].map((tab) => (
+        {['profile', 'rewards', 'history', 'notifications'].map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tabItem, currentTab === tab && styles.activeTab]}
@@ -813,12 +989,14 @@ export default function UserDashboard() {
                     ? 'person'
                     : tab === 'rewards'
                     ? 'card-giftcard'
-                    : 'star'
+                    : tab === 'history'
+                    ? 'history'
+                    : 'notifications'
                 }
-                size={30}
+                size={26}
                 color={currentTab === tab ? colors.primary : colors.text}
               />
-              {tab === 'rewards' && unreadNotifications > 0 && (
+              {tab === 'notifications' && unreadNotifications > 0 && (
                 <Badge style={styles.tabBadge}>{unreadNotifications}</Badge>
               )}
             </View>
@@ -828,7 +1006,13 @@ export default function UserDashboard() {
                 { color: currentTab === tab ? colors.primary : colors.text },
               ]}
             >
-              {tab === 'profile' ? 'Profile' : tab === 'rewards' ? 'Rewards' : 'Coin Gain'}
+              {tab === 'profile'
+                ? 'Profile'
+                : tab === 'rewards'
+                ? 'Rewards'
+                : tab === 'history'
+                ? 'History'
+                : 'Notifications'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -856,6 +1040,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    position:'relative',
+    width:'100%'
   },
   headerButtons: {
     flexDirection: 'row',
@@ -875,8 +1061,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   title: {
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 1,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
@@ -906,12 +1092,12 @@ const styles = StyleSheet.create({
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 15,
+    paddingVertical: 10,
     ...(Platform.OS === 'web' ? { transition: 'transform 0.2s ease' } : {}),
   },
   activeTab: {
-    borderBottomWidth: 4,
-    borderBottomColor: '#FFD700',
+    borderBottomWidth:2,
+    borderBottomColor: 'white',
     ...(Platform.OS === 'web' ? { transform: [{ scale: 1.05 }] } : {}),
   },
   tabIconContainer: {
@@ -923,11 +1109,11 @@ const styles = StyleSheet.create({
     right: -10,
     backgroundColor: '#FF4081',
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     marginTop: 6,
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
@@ -948,14 +1134,6 @@ const styles = StyleSheet.create({
     padding: 16,
     position: 'relative',
     overflow: 'hidden',
-  },
-  cardGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '20%',
-    opacity: 0.3,
   },
   cardTitle: {
     fontSize: 24,
@@ -1141,6 +1319,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  markAllReadButton: {
+    borderRadius: 8,
+    paddingVertical: 6,
+    elevation: 2,
+  },
   historyItem: {
     marginVertical: 10,
     borderRadius: 12,
@@ -1163,37 +1346,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginVertical: 6,
     opacity: 0.8,
-  },
-  activityCard: {
-    marginVertical: 12,
-    borderRadius: 16,
-    elevation: 8,
-    padding: 16,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  activityName: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  activityDetails: {
-    fontSize: 16,
-    marginBottom: 8,
-    opacity: 0.8,
-  },
-  activityPoints: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  actionButton: {
-    marginHorizontal: 8,
-    marginVertical: 8,
-    borderRadius: 12,
-    paddingVertical: 6,
-    minHeight: 44,
-    elevation: 4,
   },
   emptyText: {
     textAlign: 'center',

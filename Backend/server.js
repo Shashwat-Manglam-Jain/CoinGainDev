@@ -20,6 +20,7 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/fetchdata', require('./routes/adminRoutes'));
 app.use('/datafetch', require('./routes/dataRoutes'));
+app.use('/Userfetch', require('./routes/userRoutes'));
 
 // Start server
 app.listen(PORT, () => {

@@ -69,6 +69,7 @@ const registerUser = async (req, res) => {
         mobile: user.mobile,
         role: user.role,
         uniqueCode: user.uniqueCode,
+         adminId:user.adminId
       },
     });
 
@@ -113,6 +114,7 @@ const loginUser = async (req, res) => {
         mobile: user.mobile,
         role: user.role,
         uniqueCode: user.uniqueCode,
+        adminId:user.adminId
       },
     });
 

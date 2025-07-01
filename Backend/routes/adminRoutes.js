@@ -33,7 +33,7 @@ router.delete('/user/:id', verifyToken, deleteUser);
 router.post('/user/:id/addcoin', verifyToken, sendToken);
 
 // POST - Add a new reward for admin
-router.post('/admin/:adminId/reward', verifyToken, addReward);
+router.post('/admin/reward/:adminId', verifyToken, addReward);
 
 router.put('/admin/reward/:rewardId', verifyToken, editReward);
 

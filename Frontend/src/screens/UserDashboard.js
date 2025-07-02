@@ -27,7 +27,7 @@ import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../../utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH - 80;
+const CARD_WIDTH = SCREEN_WIDTH - 50;
 const CARD_HEIGHT = 280;
 
 const ButtonText = ({ children, style }) => (
@@ -71,8 +71,8 @@ export default function UserDashboard() {
   const [redemptions, setRedemptions] = useState([]);
   const [rewards, setRewards] = useState([]);
 
-  // Fetch user data from AsyncStorage or API
-  const fetchUser = useCallback(async (id) => {
+  // Fetch user data
+  const fetchUser = useCallback(async (id, retries = 2) => {
     try {
       setLoading(true);
       const storedUser = await AsyncStorage.getItem('userInfo');
@@ -104,34 +104,46 @@ export default function UserDashboard() {
       };
       setUser(updatedUser);
       await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
+      return updatedUser;
     } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying fetchUser (${retries} retries left)...`);
+        return fetchUser(id, retries - 1);
+      }
       console.error('Fetch user error:', error.message);
       Alert.alert('Error', 'Failed to load user data. Using local data.');
+      return userData;
     } finally {
       setLoading(false);
     }
   }, []);
 
   // Fetch admin data
-  const fetchAdmin = useCallback(async (adminId) => {
+  const fetchAdmin = useCallback(async (adminId, retries = 2) => {
+    if (!adminId) {
+      setAdmin({ name: null, uniqueCode: null, mobile: null });
+      return;
+    }
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error('No user token found');
-      if (!adminId) throw new Error('No admin ID provided');
       const response = await axios.get(`${API_BASE_URL}/Userfetch/admin/${adminId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
       const fetchedAdmin = response.data || {};
-      console.log("data of fetch admin :---------->>>>>>>> "+response.data );
-      
       setAdmin({
         name: fetchedAdmin.name || null,
         uniqueCode: fetchedAdmin.uniqueCode || null,
+        mobile: fetchedAdmin.mobile || null,
       });
     } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying fetchAdmin (${retries} retries left)...`);
+        return fetchAdmin(adminId, retries - 1);
+      }
       console.error('Fetch admin error:', error.message);
-      setAdmin({ name: null, uniqueCode: null });
+      setAdmin({ name: null, uniqueCode: null, mobile: null });
       Alert.alert('Error', 'Failed to load admin data.');
     } finally {
       setLoading(false);
@@ -139,17 +151,25 @@ export default function UserDashboard() {
   }, []);
 
   // Fetch rewards
-  const fetchReward = useCallback(async (adminId) => {
+  const fetchReward = useCallback(async (adminId, retries = 2) => {
+    if (!adminId) {
+      setRewards([]);
+      return;
+    }
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error('No user token found');
-      if (!adminId) throw new Error('No admin ID provided');
-      const response = await axios.get(`${API_BASE_URL}/datafetch/rewards/${adminId}`, {
+      const response = await axios.get(`${API_BASE_URL}/fetchdata/rewards/${adminId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
       setRewards(response.data || []);
+      await AsyncStorage.setItem('rewards', JSON.stringify(response.data || []));
     } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying fetchReward (${retries} retries left)...`);
+        return fetchReward(adminId, retries - 1);
+      }
       console.error('Fetch rewards error:', error.message);
       setRewards([]);
       Alert.alert('Error', 'Failed to load rewards.');
@@ -159,7 +179,8 @@ export default function UserDashboard() {
   }, []);
 
   // Fetch notifications
-  const fetchNotifications = useCallback(async (userId) => {
+  const fetchNotifications = useCallback(async (userId, retries = 2) => {
+    if (!userId) return;
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
@@ -167,8 +188,14 @@ export default function UserDashboard() {
       const response = await axios.get(`${API_BASE_URL}/Userfetch/notifications/${userId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
-      setNotifications(response.data || []);
+      const fetchedNotifications = response.data || [];
+      setNotifications(fetchedNotifications);
+      await AsyncStorage.setItem('notifications', JSON.stringify(fetchedNotifications));
     } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying fetchNotifications (${retries} retries left)...`);
+        return fetchNotifications(userId, retries - 1);
+      }
       console.error('Fetch notifications error:', error.message);
       Alert.alert('Error', 'Failed to load notifications.');
     } finally {
@@ -177,7 +204,8 @@ export default function UserDashboard() {
   }, []);
 
   // Fetch redemptions
-  const fetchRedemptions = useCallback(async (userId) => {
+  const fetchRedemptions = useCallback(async (userId, retries = 2) => {
+    if (!userId) return;
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
@@ -185,8 +213,14 @@ export default function UserDashboard() {
       const response = await axios.get(`${API_BASE_URL}/Userfetch/redeem/${userId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
-      setRedemptions(response.data || []);
+      const fetchedRedemptions = response.data || [];
+      setRedemptions(fetchedRedemptions);
+      await AsyncStorage.setItem('redemptions', JSON.stringify(fetchedRedemptions));
     } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying fetchRedemptions (${retries} retries left)...`);
+        return fetchRedemptions(userId, retries - 1);
+      }
       console.error('Fetch redemptions error:', error.message);
       Alert.alert('Error', 'Failed to load redemptions.');
     } finally {
@@ -195,7 +229,7 @@ export default function UserDashboard() {
   }, []);
 
   // Save user
-  const saveUser = useCallback(async (updatedUser) => {
+  const saveUser = useCallback(async (updatedUser, retries = 2) => {
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
@@ -208,6 +242,10 @@ export default function UserDashboard() {
       setUser(updatedUser);
       await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
     } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying saveUser (${retries} retries left)...`);
+        return saveUser(updatedUser, retries - 1);
+      }
       console.error('Save user error:', error.message);
       Alert.alert('Error', 'Failed to save user data.');
     } finally {
@@ -215,87 +253,207 @@ export default function UserDashboard() {
     }
   }, []);
 
-  // Save notifications
-  const saveNotifications = useCallback(async (newNotifications) => {
+  // Save single notification
+  const saveNotification = useCallback(async (notification, retries = 2) => {
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
-      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+    const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
       if (!userToken) throw new Error('No user token found');
-      await axios.post(
+      if (!userData._id) throw new Error('No user ID found');
+      const response = await axios.post(
         `${API_BASE_URL}/Userfetch/notifications`,
-        { userId: userData._id, notifications: newNotifications },
+        { userid: userData._id, message: notification.message },
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
-      setNotifications(newNotifications);
-      await AsyncStorage.setItem('notifications', JSON.stringify(newNotifications));
+      const newNotification = response.data || notification;
+      setNotifications((prev) => {
+        const updatedNotifications = [...prev, newNotification];
+        AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).catch((error) =>
+          console.error('AsyncStorage save notifications error:', error)
+        );
+        return updatedNotifications;
+      });
+      return newNotification;
     } catch (error) {
-      console.error('Save notifications error:', error.message);
-      Alert.alert('Error', 'Failed to save notifications.');
+      if (retries > 0) {
+        console.warn(`Retrying saveNotification (${retries} retries left)...`);
+        return saveNotification(notification, retries - 1);
+      }
+      console.error('Save notification error:', error.message);
+      Alert.alert('Error', 'Failed to save notification.');
+      throw error;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Save redemptions
-  const saveRedemptions = useCallback(async (rewardId) => {
+  // Delete notification
+  const deleteNotification = useCallback(async (notificationId, retries = 2) => {
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
-      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
-      const reward = rewards.find((r) => r._id === rewardId);
-      if (!reward) throw new Error('Reward not found');
-      if (userData.points < reward.pointsRequired) throw new Error('Insufficient points');
-      const newRedemption = {
-        _id: `${Date.now()}`,
-        rewardId: { _id: reward._id, name: reward.name, image: reward.image },
-        redeemedAt: new Date().toISOString(),
-        status: 'pending',
-      };
-      await axios.post(
-        `${API_BASE_URL}/Userfetch/redeem`,
-        { userId: userData._id, redemption: newRedemption },
-        { headers: { Authorization: `Bearer ${userToken}` } }
-      );
-      const updatedUser = { ...userData, points: userData.points - reward.pointsRequired };
-      await Promise.all([
-        saveUser(updatedUser),
-        setRedemptions([...redemptions, newRedemption]),
-        AsyncStorage.setItem('redemptions', JSON.stringify([...redemptions, newRedemption])),
-      ]);
+      if (!userToken) throw new Error('No user token found');
+      await axios.delete(`${API_BASE_URL}/Userfetch/notifications/${notificationId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      setNotifications((prev) => {
+        const updatedNotifications = prev.filter((n) => n._id !== notificationId);
+        AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).catch((error) =>
+          console.error('AsyncStorage save notifications error:', error)
+        );
+        return updatedNotifications;
+      });
     } catch (error) {
-      console.error('Save redemptions error:', error.message);
-      Alert.alert('Error', error.message || 'Failed to save redemptions.');
+      if (retries > 0) {
+        console.warn(`Retrying deleteNotification (${retries} retries left)...`);
+        return deleteNotification(notificationilibre1, retries - 1);
+      }
+      console.error('Delete notification error:', error.message);
+      Alert.alert('Error', 'Failed to delete notification.');
     } finally {
       setLoading(false);
     }
-  }, [user, rewards, redemptions, saveUser]);
+  }, []);
+
+  // SaveनिSave redemption
+  const saveRedemptions = useCallback(
+    async (rewardId, retries = 2) => {
+      try {
+        setLoading(true);
+        const userToken = await AsyncStorage.getItem('userToken');
+        if (!userToken) throw new Error('No user token found');
+        const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+        if (!userData._id) throw new Error('No user ID found');
+        const reward = rewards.find((r) => r._id === rewardId);
+        if (!reward) throw new Error('Reward not found');
+        if (userData.points < reward.pointsRequired) throw new Error('Insufficient points');
+
+        const newRedemption = {
+          _id: `${Date.now()}`, // Temporary ID, overridden by backend
+          rewardId: { _id: reward._id, name: reward.name, image: reward.image },
+          redeemedAt: new Date().toISOString(),
+          status: 'pending',
+        };
+
+        const response = await axios.post(
+          `${API_BASE_URL}/Userfetch/redeem`,
+          { userid: userData._id, redemption: newRedemption },
+          { headers: { Authorization: `Bearer ${userToken}` } }
+        );
+
+        const savedRedemption = response.data.redemption || newRedemption;
+        const updatedUser = { ...userData, points: userData.points - reward.pointsRequired };
+        const newNotification = {
+          _id: `${Date.now()}`,
+          message: `Redemption request for ${reward.name} submitted.`,
+          createdAt: new Date().toISOString(),
+          read: false,
+          type: 'redemption_submitted',
+          rewardId: reward._id,
+        };
+
+        await Promise.all([
+          saveUser(updatedUser),
+          saveNotification(newNotification),
+          setRedemptions((prev) => {
+            const newRedemptions = [...prev, savedRedemption];
+            AsyncStorage.setItem('redemptions', JSON.stringify(newRedemptions)).catch((error) =>
+              console.error('AsyncStorage save redemptions error:', error)
+            );
+            return newRedemptions;
+          }),
+        ]);
+
+        return savedRedemption;
+      } catch (error) {
+        if (retries > 0) {
+          console.warn(`Retrying saveRedemptions (${retries} retries left)...`);
+          return saveRedemptions(rewardId, retries - 1);
+        }
+        console.error('Save redemptions error:', error.message);
+        Alert.alert('Error', error.message || 'Failed to save redemptions.');
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [rewards, saveUser, saveNotification]
+  );
+
+  // Delete redemption
+  const deleteRedemption = useCallback(async (redemptionId, rewardName, retries = 2) => {
+    try {
+      setLoading(true);
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      await axios.delete(`${API_BASE_URL}/Userfetch/redeem/${redemptionId}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      setRedemptions((prev) => {
+        const updatedRedemptions = prev.filter((r) => r._id !== redemptionId);
+        AsyncStorage.setItem('redemptions', JSON.stringify(updatedRedemptions)).catch((error) =>
+          console.error('AsyncStorage save redemptions error:', error)
+        );
+        return updatedRedemptions;
+      });
+      const newNotification = {
+        _id: `${Date.now()}`,
+        message: `Redemption for ${rewardName} cancelled successfully.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        type: 'redemption_cancelled',
+        rewardId: null,
+      };
+      await saveNotification(newNotification);
+    } catch (error) {
+      if (retries > 0) {
+        console.warn(`Retrying deleteRedemption (${retries} retries left)...`);
+        return deleteRedemption(redemptionId, rewardName, retries - 1);
+      }
+      console.error('Delete redemption error:', error.message);
+      Alert.alert('Error', 'Failed to cancel redemption.');
+    } finally {
+      setLoading(false);
+    }
+  }, [saveNotification]);
 
   // Mark all notifications as read
-  const handleMarkAllRead = useCallback(() => {
-    const updatedNotifications = notifications.map((n) => ({ ...n, read: true }));
-    saveNotifications(updatedNotifications);
-  }, [notifications, saveNotifications]);
+  const handleMarkAllRead = useCallback(async () => {
+    try {
+      const updatedNotifications = notifications.map((n) => ({ ...n, read: true }));
+      setNotifications(updatedNotifications);
+      await AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications));
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+      await axios.put(
+        `${API_BASE_URL}/Userfetch/notifications/mark-all-read`,
+        { userId: user._id },
+        { headers: { Authorization: `Bearer ${userToken}` } }
+      );
+    } catch (error) {
+      console.error('Mark all read error:', error.message);
+      Alert.alert('Error', 'Failed to mark notifications as read.');
+    }
+  }, [notifications, user]);
 
   // Initial data load
   useEffect(() => {
     const loadData = async () => {
       try {
         const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
-        console.log(userData);
-        
-        if (userData._id) {
-          await Promise.all([
-            fetchUser(userData._id),
-            fetchAdmin(userData.adminId),
-            fetchReward(userData.adminId),
-            fetchNotifications(userData._id),
-            fetchRedemptions(userData._id),
-          ]);
-        } else {
+        if (!userData._id) {
           Alert.alert('Error', 'No user data found. Please log in.');
           navigation.replace('Login');
+          return;
         }
+        const fetchedUser = await fetchUser(userData._id);
+        await Promise.all([
+          fetchAdmin(fetchedUser.adminId),
+          fetchReward(fetchedUser.adminId),
+          fetchNotifications(userData._id),
+          fetchRedemptions(userData._id),
+        ]);
       } catch (error) {
         console.error('Initial data load error:', error.message);
         Alert.alert('Error', 'Failed to load initial data.');
@@ -362,6 +520,7 @@ export default function UserDashboard() {
         Alert.alert('Error', 'Failed to log out.');
         console.error('Logout error:', error);
       }
+      setModalVisible(false);
     });
     setModalVisible(true);
   }, [navigation]);
@@ -374,32 +533,42 @@ export default function UserDashboard() {
 
   const handleClearNotification = useCallback(
     (notificationId) => {
-      const updatedNotifications = notifications.filter((n) => n._id !== notificationId);
-      saveNotifications(updatedNotifications);
+      setModalMessage('Are you sure you want to dismiss this notification?');
+      setModalAction(() => async () => {
+        try {
+          await deleteNotification(notificationId);
+          setModalVisible(false);
+          Alert.alert('Success', 'Notification dismissed.');
+        } catch (error) {
+          setModalVisible(false);
+          Alert.alert('Error', 'Failed to dismiss notification.');
+          console.error('Clear notification error:', error);
+        }
+      });
+      setModalVisible(true);
     },
-    [notifications, saveNotifications]
+    [deleteNotification]
   );
 
   const handleClearRedemption = useCallback(
     (redemptionId) => {
-      const updatedRedemptions = redemptions.filter((r) => r._id !== redemptionId);
-      const newNotification = {
-        _id: `${Date.now()}`,
-        message: 'Redemption cancelled successfully.',
-        createdAt: new Date().toISOString(),
-        read: false,
-        type: 'redemption_cancelled',
-        rewardId: null,
-      };
-      Promise.all([
-        saveRedemptions(updatedRedemptions),
-        saveNotifications([...notifications, newNotification]),
-      ]).catch((error) => {
-        Alert.alert('Error', 'Failed to cancel redemption.');
-        console.error('Clear redemption error:', error);
+      const redemption = redemptions.find((r) => r._id === redemptionId);
+      if (!redemption) return;
+      setModalMessage(`Are you sure you want to cancel redemption of ${redemption.rewardId.name}?`);
+      setModalAction(() => async () => {
+        try {
+          await deleteRedemption(redemptionId, redemption.rewardId.name);
+          setModalVisible(false);
+          Alert.alert('Success', 'Redemption cancelled.');
+        } catch (error) {
+          setModalVisible(false);
+          Alert.alert('Error', 'Failed to cancel redemption.');
+          console.error('Clear redemption error:', error);
+        }
       });
+      setModalVisible(true);
     },
-    [redemptions, notifications, saveRedemptions, saveNotifications]
+    [redemptions, deleteRedemption]
   );
 
   const handleRedeem = useCallback(
@@ -421,52 +590,33 @@ export default function UserDashboard() {
     [saveRedemptions]
   );
 
-  const renderContent = () => {
-    switch (currentTab) {
+  const renderContent = (tab) => {
+    switch (tab) {
       case 'profile':
         return (
-          <Animated.View style={[styles.tabContent, { opacity: fadeAnim ,position:'relative',bottom:28}]}>
-             <Animated.View
-        style={[
-          styles.header,
-          {
-            backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF',
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.text }]}>Coin Gain</Text>
-        <View style={styles.headerButtons}>
-          <ThemeToggle style={styles.toggle} />
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <Button
-              mode="contained"
-              onPress={handleLogout}
+          <Animated.View style={[styles.tabContent, { opacity: fadeAnim, position: 'relative', bottom: 28 }]}>
+                <View style={styles.tabContent}>
+                       <View style={[styles.header]}>
+                         <Text style={[styles.title, { color: colors.text ,paddingRight:10}]}>
+                           Coin Gain
+                         </Text>
+                         <View style={styles.headerButtons}>
+                           <ThemeToggle style={styles.toggle} />
+                           <View style={styles.buttonContainer}>
+                             <Button
+                               mode="contained"
+                             style={{position:'relative',right:10}}
+                               buttonColor={colors.error}
+                               textColor="#fff"
+                               onPress={handleLogout}
               
-              buttonColor={colors.error}
-              textColor="#FFFFFF"
-              contentStyle={{ paddingVertical: 6 }}
-              onPressIn={() => {
-                Animated.timing(scaleAnim, {
-                  toValue: 0.95,
-                  duration: 100,
-                  useNativeDriver: true,
-                }).start();
-              }}
-              onPressOut={() => {
-                Animated.timing(scaleAnim, {
-                  toValue: 1,
-                  duration: 100,
-                  useNativeDriver: true,
-                }).start();
-              }}
-            >
-              <ButtonText>Logout</ButtonText>
-            </Button>
-          </Animated.View>
-        </View>
-      </Animated.View>
-            <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
+                             >
+                               <Text>Logout</Text>
+                             </Button>
+                           </View>
+                         </View>
+                       </View></View>
+            <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' ,position:'relative',top:50}]}>
               <Card.Title
                 title="Your Profile"
                 titleStyle={[styles.cardTitle, { color: colors.text }]}
@@ -496,36 +646,7 @@ export default function UserDashboard() {
                 </Text>
               </Card.Content>
             </View>
-            <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-              <Card.Title
-                title="Your Stats"
-                titleStyle={[styles.cardTitle, { color: colors.text }]}
-                left={() => (
-                  <Avatar.Icon
-                    size={48}
-                    icon="chart-bar"
-                    style={{ backgroundColor: colors.primary, marginRight: 12 }}
-                  />
-                )}
-              />
-              <Card.Content>
-                <View style={styles.statContainer}>
-                  <View style={styles.statItem}>
-                    <MaterialIcons name="star" size={28} color={colors.primary} style={styles.statIcon} />
-                    <Text style={[styles.cardText, { color: colors.text }]}>
-                      Points Earned: {user?.points ?? 0}
-                    </Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <MaterialCommunityIcons name="gift" size={28} color={colors.primary} style={styles.statIcon} />
-                    <Text style={[styles.cardText, { color: colors.text }]}>
-                      Rewards Redeemed: {redemptions.filter((r) => r.status === 'approved').length}
-                    </Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </View>
-            <View style={styles.sliderContainer}>
+               <View style={[styles.sliderContainer,{ position:'relative',top:50}]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Rewards</Text>
               <TouchableWithoutFeedback onPressIn={handleTouchStart} onPressOut={handleTouchEnd}>
                 <ScrollView
@@ -548,7 +669,7 @@ export default function UserDashboard() {
                         resizeMode="cover"
                         style={styles.carouselItem}
                         imageStyle={styles.carouselImage}
-                        defaultSource={require('../../assets/placeholder.jpg')}
+                        defaultSource={require('../../assets/placeholder.webp')}
                         onError={() => console.log('Failed to load reward image')}
                       >
                         {item.tag && (
@@ -579,8 +700,38 @@ export default function UserDashboard() {
                 </ScrollView>
               </TouchableWithoutFeedback>
             </View>
+            <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF'  ,position:'relative',top:50}]}>
+              <Card.Title
+                title="Your Stats"
+                titleStyle={[styles.cardTitle, { color: colors.text }]}
+                left={() => (
+                  <Avatar.Icon
+                    size={48}
+                    icon="chart-bar"
+                    style={{ backgroundColor: colors.primary, marginRight: 12 }}
+                  />
+                )}
+              />
+              <Card.Content>
+                <View style={styles.statContainer}>
+                  <View style={styles.statItem}>
+                    <MaterialIcons name="star" size={28} color={colors.primary} style={styles.statIcon} />
+                    <Text style={[styles.cardText, { color: colors.text }]}>
+                      Points Earned: {user?.points ?? 0}
+                    </Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <MaterialCommunityIcons name="gift" size={28} color={colors.primary} style={styles.statIcon} />
+                    <Text style={[styles.cardText, { color: colors.text }]}>
+                      Rewards Redeemed: {redemptions.filter((r) => r.status === 'approved').length}
+                    </Text>
+                  </View>
+                </View>
+              </Card.Content>
+            </View>
+         
             {admin && (
-              <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
+              <View style={[styles.card, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' ,position:'relative',top:50 }]}>
                 <Card.Title
                   title="Assigned Admin"
                   titleStyle={[styles.cardTitle, { color: colors.text }]}
@@ -598,6 +749,9 @@ export default function UserDashboard() {
                   </Text>
                   <Text style={[styles.cardText, { color: colors.text }]}>
                     Unique Code: {admin.uniqueCode || 'N/A'}
+                  </Text>
+                  <Text style={[styles.cardText, { color: colors.text }]}>
+                    Mobile: {admin.mobile || 'N/A'}
                   </Text>
                 </Card.Content>
               </View>
@@ -664,13 +818,13 @@ export default function UserDashboard() {
                         <View style={styles.progressContainer}>
                           <View style={styles.progressBar}>
                             <Animated.View
-                            style={[
-                              styles.progressFill,
-                              {
-                                width: `${percentage}%`,
-                                backgroundColor: isAchieved ? '#2196F3' : '#4CAF50',
-                              },
-                            ]}
+                              style={[
+                                styles.progressFill,
+                                {
+                                  width: `${percentage}%`,
+                                  backgroundColor: isAchieved ? '#2196F3' : '#4CAF50',
+                                },
+                              ]}
                             />
                           </View>
                           <Text style={[styles.progressText, { color: colors.text }]}>
@@ -801,30 +955,32 @@ export default function UserDashboard() {
           <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
             <View style={styles.rewardHistoryHeader}>
               <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
-              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                <Button
-                  mode="outlined"
-                  onPress={handleMarkAllRead}
-                  style={styles.markAllReadButton}
-                  textColor={colors.primary}
-                  onPressIn={() => {
-                    Animated.timing(scaleAnim, {
-                      toValue: 0.95,
-                      duration: 100,
-                      useNativeDriver: true,
-                    }).start();
-                  }}
-                  onPressOut={() => {
-                    Animated.timing(scaleAnim, {
-                      toValue: 1,
-                      duration: 100,
-                      useNativeDriver: true,
-                    }).start();
-                  }}
-                >
-                  <ButtonText>Mark All Read</ButtonText>
-                </Button>
-              </Animated.View>
+              {notifications.length > 0 && (
+                <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                  <Button
+                    mode="outlined"
+                    onPress={handleMarkAllRead}
+                    style={styles.markAllReadButton}
+                    textColor={colors.primary}
+                    onPressIn={() => {
+                      Animated.timing(scaleAnim, {
+                        toValue: 0.95,
+                        duration: 100,
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                    onPressOut={() => {
+                      Animated.timing(scaleAnim, {
+                        toValue: 1,
+                        duration: 100,
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                  >
+                    <ButtonText>Mark All Read</ButtonText>
+                  </Button>
+                </Animated.View>
+              )}
             </View>
             <FlatList
               data={notifications}
@@ -958,14 +1114,14 @@ export default function UserDashboard() {
           </View>
         </View>
       </Modal>
-     
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent]}
+      <FlatList
+        data={[currentTab]} // Single item array to render current tab content
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => renderContent(item)}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-      >
-        {renderContent()}
-      </ScrollView>
+      />
       <View
         style={[
           styles.tabBar,
@@ -1040,34 +1196,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    position:'relative',
-    width:'100%'
+    width: '100%',
   },
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 15,
   },
-  logoutButton: {
-    borderRadius: 12,
-    paddingVertical: 8,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
   toggle: {
     marginRight: 10,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '900',
     textAlign: 'center',
     letterSpacing: 1,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
   scrollContent: {
     padding: 20,
@@ -1093,12 +1236,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 10,
-    ...(Platform.OS === 'web' ? { transition: 'transform 0.2s ease' } : {}),
   },
   activeTab: {
-    borderBottomWidth:2,
+    borderBottomWidth: 2,
     borderBottomColor: 'white',
-    ...(Platform.OS === 'web' ? { transform: [{ scale: 1.05 }] } : {}),
   },
   tabIconContainer: {
     position: 'relative',
@@ -1116,9 +1257,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 6,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
   tabContent: {
     paddingBottom: 20,
@@ -1127,13 +1265,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     borderRadius: 16,
     elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
     padding: 16,
-    position: 'relative',
-    overflow: 'hidden',
   },
   cardTitle: {
     fontSize: 24,
@@ -1154,9 +1286,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginVertical: 15,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
   carousel: {
     width: CARD_WIDTH,
@@ -1208,19 +1337,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     fontSize: 16,
     height: 50,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   rewardCard: {
     marginVertical: 12,
     borderRadius: 16,
     elevation: 8,
     padding: 16,
-    position: 'relative',
-    overflow: 'hidden',
   },
   rewardImage: {
     width: '100%',
@@ -1275,7 +1397,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 12,
     paddingVertical: 8,
-    elevation: 6,
   },
   notificationItem: {
     flexDirection: 'row',
@@ -1285,7 +1406,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.1)',
-    elevation: 4,
   },
   notificationText: {
     fontSize: 18,
@@ -1313,7 +1433,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#6200EE',
-    elevation: 2,
   },
   toggleButtonText: {
     fontSize: 16,
@@ -1322,15 +1441,12 @@ const styles = StyleSheet.create({
   markAllReadButton: {
     borderRadius: 8,
     paddingVertical: 6,
-    elevation: 2,
   },
   historyItem: {
     marginVertical: 10,
     borderRadius: 12,
     elevation: 6,
     padding: 16,
-    position: 'relative',
-    overflow: 'hidden',
   },
   historyImage: {
     width: 80,
@@ -1372,10 +1488,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
   },
   modalTitle: {
     fontSize: 24,

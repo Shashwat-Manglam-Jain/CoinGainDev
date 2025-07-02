@@ -12,7 +12,12 @@ const {
   deleteNotification,
   approveRedemption,
   rejectRedemption,
-  editReward
+  editReward,
+  getRewards,
+  getNotifications,
+  getRedemptions,
+  makepayment,
+  fetchInvoice
 } = require('../controllers/adminController');
 
 const verifyToken = require('../middleware/verifyToken');
@@ -31,6 +36,13 @@ router.delete('/user/:id', verifyToken, deleteUser);
 
 // POST - Send tokens to a user
 router.post('/user/:id/addcoin', verifyToken, sendToken);
+
+
+router.get('/rewards/:adminId', verifyToken, getRewards);
+router.get('/notifications/:adminId', verifyToken, getNotifications);
+router.get('/redemptions/:adminId', verifyToken, getRedemptions);
+
+
 
 // POST - Add a new reward for admin
 router.post('/admin/reward/:adminId', verifyToken, addReward);
@@ -52,4 +64,7 @@ router.put('/redemption/:id/approve', verifyToken, approveRedemption);
 // PUT - Reject a redemption
 router.put('/redemption/:id/reject', verifyToken, rejectRedemption);
 
+
+router.post('/makepayment',makepayment)
+router.post('/fetchInvoice',verifyToken,fetchInvoice)
 module.exports = router;

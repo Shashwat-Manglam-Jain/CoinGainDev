@@ -2,7 +2,7 @@ const User = require('../models/User');
 const Reward = require('../models/Reward');
 const Notification = require('../models/Notification');
 const Redemption = require('../models/Redemption');
-
+const PaymentHistory=require('../models/paymentHistory')
 //  Get all admins
 const getAllAdmins = async (req, res) => {
   try {
@@ -178,6 +178,128 @@ const rejectRedemption = async (req, res) => {
   }
 };
 
+
+
+const getRewards = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    const rewards = await Reward.find({ adminId });
+    res.json(rewards);
+  } catch (error) {
+    console.error('Error fetching rewards:', error);
+    res.status(500).json({ error: 'Failed to fetch rewards' });
+  }
+
+};
+
+const getNotifications = async (req, res) => {
+ try {
+    const { adminId } = req.params;
+    const notifications = await Notification.find({ adminId }).sort({ createdAt: -1 });
+    res.json(notifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+
+};
+
+const getRedemptions = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    const redemptions = await Redemption.find({ adminId }).sort({ createdAt: -1 });
+    res.json(redemptions);
+  } catch (error) {
+    console.error('Error fetching redemptions:', error);
+    res.status(500).json({ error: 'Failed to fetch redemptions' });
+  }
+};
+
+const makepayment = async (req, res) => {
+  try {
+    const {
+      invoice,
+      amount,
+      rewardPercentage,
+      expiryMonth, // expects a string like "3 months"
+      senderId,
+      receiverUniquecode
+    } = req.body;
+
+    // Validate expiryMonth format (e.g., "3 months")
+    const [numStr, unit] = expiryMonth.split(" ");
+    const num = parseInt(numStr);
+    if (isNaN(num) || unit !== "months") {
+      return res.status(400).json({ error: "Invalid expiryMonth format. Use format like '3 months'" });
+    }
+
+    // Calculate expiry date from today
+    const expiryDate = new Date();
+    expiryDate.setMonth(expiryDate.getMonth() + num); // Add N months
+
+    // Find receiver
+    const receiver = await User.findOne({ userUniqueCode: receiverUniquecode });
+    if (!receiver) {
+      console.log("No receiver found with unique code mentioned");
+      return res.status(404).json({ error: "Receiver not found with provided unique code" });
+    }
+
+    // Create payment history entry
+    const paymentData = await PaymentHistory.create({
+      invoice,
+      amount,
+      rewardPercentage,
+      expiryMonth: expiryDate, // now a Date object
+      senderId,
+      receiverId: receiver._id
+    });
+
+    // Find sender/admin
+    const admindata = await User.findById(senderId);
+    if (!admindata) {
+      console.log("No sender ID found, check it");
+      return res.status(404).json({ error: "Sender ID not found" });
+    }
+
+    // Ensure paymentHistory array exists
+    if (!admindata.paymentHistory) {
+      admindata.paymentHistory = [];
+    }
+
+    // Add payment record to sender's history
+    admindata.paymentHistory.push(paymentData._id);
+    await admindata.save();
+
+    // Done
+    res.status(200).json({ message: "Payment recorded successfully", payment: paymentData });
+  } catch (error) {
+    console.error("Payment error:", error);
+    if (error.code === 11000) {
+      return res.status(409).json({ error: "Duplicate invoice number" });
+    }
+    res.status(500).json({ error: "Something went wrong while making payment" });
+  }
+};
+
+
+const fetchInvoice = async (req, res) => {
+  try {
+    const { adminId } = req.body;
+    const admin = await User.findById(adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const invoiceCount = admin.paymentHistory.length;
+    res.status(200).json({ invoiceCount });
+  } catch (error) {
+    console.error('Fetch invoice error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
 //  Export all functions
 module.exports = {
   getAllAdmins,
@@ -192,4 +314,9 @@ module.exports = {
   deleteAllNotification,
   approveRedemption,
   rejectRedemption,
+   getRewards,
+  getNotifications,
+  getRedemptions,
+  makepayment,
+  fetchInvoice
 };

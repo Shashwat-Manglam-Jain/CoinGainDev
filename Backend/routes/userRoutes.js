@@ -1,32 +1,28 @@
 const express = require('express');
 const router = express.Router();
-
 const {
   getUser,
-  postRedemeData,
-  getRedemptionsdata,
-  getNotification,
+  updateUser,
+  postRedemptionData,
+  getRedemptionsData,
+  getNotifications,
   postNotification,
-  fetchadmindetails
-} = require('../controllers/userController'); // Make sure this path is correct
+  deleteNotification,
+  markAllNotificationsRead,
+  deleteRedemption,
+  fetchAdminDetails,
+} = require('../controllers/userController');
+const verifyToken = require('../middleware/verifyToken');
 
-const verifyToken = require('../middleware/verifyToken'); // Adjust path if needed
-
-// Get a user by ID
 router.get('/user/:id', verifyToken, getUser);
-
-router.get('/admin/:adminId', verifyToken,  fetchadmindetails);
-
-// Post a redemption request
-router.post('/redeem', verifyToken, postRedemeData);
-
-// Get all redemptions for a user
-router.get('/redeem/:id', verifyToken, getRedemptionsdata);
-
-// Get all notifications for a user
-router.get('/notifications/:id', verifyToken, getNotification);
-
-// Post a notification
+router.put('/user/:id', verifyToken, updateUser);
+router.get('/admin/:adminId', verifyToken, fetchAdminDetails);
+router.post('/redeem', verifyToken, postRedemptionData);
+router.get('/redeem/:id', verifyToken, getRedemptionsData);
+router.delete('/redeem/:id', verifyToken, deleteRedemption);
+router.get('/notifications/:id', verifyToken, getNotifications);
 router.post('/notifications', verifyToken, postNotification);
+router.delete('/notifications/:id', verifyToken, deleteNotification);
+router.put('/notifications/mark-all-read', verifyToken, markAllNotificationsRead);
 
 module.exports = router;

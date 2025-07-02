@@ -31,6 +31,10 @@ import * as DocumentPicker from "expo-document-picker";
 import axios from "axios";
 import { API_BASE_URL } from "../../utils/api";
 import { useFocusEffect } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system";
+import { Picker } from "@react-native-picker/picker";
+import Slider from "@react-native-community/slider";
+import Toast from "react-native-toast-message";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -44,17 +48,18 @@ const defaultAdminUser = {
   role: "admin",
   uniqueCode: "VJGAJW",
 };
+
 const ButtonText = ({ children, style }) => (
   <Text
     style={[
       {
-        textAlign: 'center',
+        textAlign: "center",
         fontSize: 16,
-        fontWeight: '500',
-        lineHeight: Platform.OS === 'android' ? 28 : 20,
-        flexWrap: 'wrap',
+        fontWeight: "500",
+        lineHeight: Platform.OS === "android" ? 28 : 20,
+        flexWrap: "wrap",
         flexShrink: 1,
-        width: '100%',
+        width: "100%",
       },
       style,
     ]}
@@ -91,25 +96,33 @@ export default function AdminDashboard({ navigation }) {
   const [modalAction, setModalAction] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [editingRewardId, setEditingRewardId] = useState(null);
+  const [invoice, setInvoice] = useState(1);
+  const [amount, setAmount] = useState("");
+  const [rewardPercentage, setRewardPercentage] = useState(10);
+  const [expiry, setExpiry] = useState("6 months");
+  const [receiverCode, setReceiverCode] = useState("");
+  const rewardOptions = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
   const scrollRef = useRef(null);
   const [index, setIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-useFocusEffect(
-    React.useCallback(() => {
-      const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-        Alert.alert("Exit App", "Do you really want to exit?", [
-          { text: "Cancel", style: "cancel" },
-          { text: "OK", onPress: () => BackHandler.exitApp() },
-        ]);
-        return true;
-      });
+  useFocusEffect(
+    useCallback(() => {
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          Alert.alert("Exit App", "Do you really want to exit?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "OK", onPress: () => BackHandler.exitApp() },
+          ]);
+          return true;
+        }
+      );
 
       return () => backHandler.remove();
     }, [])
   );
-
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -140,6 +153,7 @@ useFocusEffect(
           fetchRewards(parsedUser._id),
           fetchNotifications(parsedUser._id),
           fetchRedemptions(parsedUser._id),
+          fetchInvoice(parsedUser._id),
         ]);
       } catch (error) {
         Alert.alert("Error", "Failed to load user info: " + error.message);
@@ -149,7 +163,7 @@ useFocusEffect(
       }
     };
     loadAdminUser();
-  }, []);
+  }, [fetchUsers, fetchRewards, fetchNotifications, fetchRedemptions, fetchInvoice]);
 
   const fetchUsers = useCallback(async (adminId) => {
     try {
@@ -177,7 +191,7 @@ useFocusEffect(
       }
       const token = await AsyncStorage.getItem("userToken");
       const response = await axios.get(
-        `${API_BASE_URL}/datafetch/rewards/${adminId}`,
+        `${API_BASE_URL}/fetchdata/rewards/${adminId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -196,7 +210,7 @@ useFocusEffect(
       }
       const token = await AsyncStorage.getItem("userToken");
       const response = await axios.get(
-        `${API_BASE_URL}/datafetch/notifications/${adminId}`,
+        `${API_BASE_URL}/fetchdata/notifications/${adminId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -215,7 +229,7 @@ useFocusEffect(
       }
       const token = await AsyncStorage.getItem("userToken");
       const response = await axios.get(
-        `${API_BASE_URL}/datafetch/redemptions/${adminId}`,
+        `${API_BASE_URL}/fetchdata/redemptions/${adminId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -227,6 +241,89 @@ useFocusEffect(
     }
   }, []);
 
+ const fetchInvoice = useCallback(async (adminId) => {
+  try {
+    const token = await AsyncStorage.getItem("userToken");
+    if (!adminId) {
+      throw new Error("Invalid Admin. Please relogin");
+    }
+    const response = await axios.post(
+      `${API_BASE_URL}/fetchdata/fetchInvoice`,
+      { adminId },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    console.log("fetchInvoice response:", response.data); // Debugging
+    const invoiceCount = response.data?.invoiceCount ?? 1;
+    setInvoice(invoiceCount+1);
+  } catch (error) {
+    console.error("Error fetching invoice:", error);
+    Alert.alert("Error", "Failed to fetch invoice: " + error.message);
+    setInvoice(1);
+  }
+}, []);
+
+  const handleSliderChange = (index) => {
+    setRewardPercentage(rewardOptions[index]);
+  };
+const makepayment = async (invoice,amount, rewardPercentage, expiry, receiverCode) => {
+  try {console.log(invoice,amount, rewardPercentage, expiry, receiverCode);
+  
+    const userInfoString = await AsyncStorage.getItem("userInfo");
+    if (!userInfoString) {
+      Toast.show({
+        type: "error",
+        text1: "Session Expired",
+        text2: "Please log in again",
+      });
+      navigation.navigate("Login");
+      return;
+    }
+    const userInfo = JSON.parse(userInfoString);
+    console.log("userInfo:", userInfo);
+    const token = await AsyncStorage.getItem("userToken");
+    console.log("token:", token);
+    const receiverUniquecode = `${receiverCode}`;
+    console.log("receiverUniquecode:", receiverUniquecode);
+    console.log("Request URL:", `${API_BASE_URL}/fetchdata/makepayment`);
+
+
+    const res = await axios.post(
+      `${API_BASE_URL}/fetchdata/makepayment`,
+      {   
+     invoice,
+        amount,
+        rewardPercentage,
+        expiryMonth: expiry,
+        senderId: userInfo._id,
+        receiverUniquecode,
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    Toast.show({
+      type: "success",
+      text1: "Payment Successful",
+      text2: `₹${amount} sent successfully`,
+    });
+
+    // Reset form
+    setAmount("");
+    setRewardPercentage(10);
+    setExpiry("6 months");
+    setReceiverCode("");
+    await fetchInvoice(userInfo._id); // Refresh invoice
+  } catch (error) {
+    console.error("Payment failed:", error);
+    console.error("Error response:", error.response?.data);
+    Toast.show({
+      type: "error",
+      text1: "Payment Failed",
+      text2: error.response?.data?.error || "Something went wrong while sending payment",
+    });
+  }
+};
   const handleTabChange = (tab) => {
     setCurrentTab(tab);
   };
@@ -268,8 +365,12 @@ useFocusEffect(
             Alert.alert("Error", "Image size must be less than 5MB");
             return;
           }
-          setNewReward({ ...newReward, image: uri });
-          setImagePreview(uri);
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const base64WithPrefix = `data:image/jpeg;base64,${base64}`;
+          setNewReward({ ...newReward, image: base64WithPrefix });
+          setImagePreview(base64WithPrefix);
         }
       }
     } catch (error) {
@@ -295,6 +396,11 @@ useFocusEffect(
         prev.map((u) => (u._id === editUser._id ? { ...editUser } : u))
       );
       setEditUser(null);
+      Toast.show({
+        type: "success",
+        text1: "User Updated",
+        text2: "User details saved successfully",
+      });
     } catch (error) {
       Alert.alert("Error", "Failed to save user: " + error.message);
     }
@@ -310,6 +416,11 @@ useFocusEffect(
         });
         setUsers((prev) => prev.filter((u) => u._id !== userId));
         setModalVisible(false);
+        Toast.show({
+          type: "success",
+          text1: "User Deleted",
+          text2: "User has been removed successfully",
+        });
       } catch (error) {
         Alert.alert("Error", "Failed to delete user: " + error.message);
       }
@@ -351,66 +462,15 @@ useFocusEffect(
         setTokenAmount("");
         setSendTokenUserId(null);
         setModalVisible(false);
+        Toast.show({
+          type: "success",
+          text1: "Tokens Sent",
+          text2: `${tokenAmount} tokens sent to ${user.name}`,
+        });
       } catch (error) {
         Alert.alert(
           "Error",
           error.response?.data?.error || "Failed to send tokens"
-        );
-      }
-    });
-    setModalVisible(true);
-  };
-
-  const handleSendCoins = async () => {
-    const { userId, amount } = coinSettings;
-    if (!userId || !amount || isNaN(amount) || parseInt(amount) <= 0) {
-      Alert.alert("Error", "Please enter a valid user ID and coin amount");
-      return;
-    }
-    const user = users.find(
-      (u) =>
-        u.name === userId ||
-        u._id === userId ||
-        u.mobile === userId ||
-        u.uniqueCode === userId
-    );
-    if (!user) {
-      Alert.alert("Error", "User not found");
-      return;
-    }
-    setModalMessage(
-      `Are you sure you want to send ${amount} coins to ${user.name}?`
-    );
-    setModalAction(() => async () => {
-      try {
-        const token = await AsyncStorage.getItem("userToken");
-        const response = await axios.post(
-          `${API_BASE_URL}/fetchdata/user/${user._id}/addcoin`,
-          { amount: parseInt(amount) },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        setUsers((prev) =>
-          prev.map((u) =>
-            u._id === user._id
-              ? { ...u, points: u.points + parseInt(amount) }
-              : u
-          )
-        );
-        setNotifications((prev) => [
-          ...prev,
-          {
-            _id: `${Date.now()}`,
-            message: `Sent ${amount} coins to ${user.name}`,
-            createdAt: new Date().toISOString(),
-            read: false,
-          },
-        ]);
-        setCoinSettings({ userId: "", amount: "" });
-        setModalVisible(false);
-      } catch (error) {
-        Alert.alert(
-          "Error",
-          error.response?.data?.error || "Failed to send coins"
         );
       }
     });
@@ -431,7 +491,6 @@ useFocusEffect(
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (editingRewardId) {
-        // Update existing reward
         const response = await axios.put(
           `${API_BASE_URL}/fetchdata/admin/reward/${editingRewardId}`,
           {
@@ -449,8 +508,12 @@ useFocusEffect(
               : reward
           )
         );
+        Toast.show({
+          type: "success",
+          text1: "Reward Updated",
+          text2: "Reward details updated successfully",
+        });
       } else {
-        // Add new reward
         const response = await axios.post(
           `${API_BASE_URL}/fetchdata/admin/reward/${adminUser._id}`,
           {
@@ -465,6 +528,11 @@ useFocusEffect(
           ...prev,
           { ...newReward, _id: response.data._id },
         ]);
+        Toast.show({
+          type: "success",
+          text1: "Reward Added",
+          text2: "New reward added successfully",
+        });
       }
       setNewReward({ name: "", price: "", pointsRequired: "", image: null });
       setImagePreview(null);
@@ -500,6 +568,11 @@ useFocusEffect(
         );
         setRewards((prev) => prev.filter((r) => r._id !== rewardId));
         setModalVisible(false);
+        Toast.show({
+          type: "success",
+          text1: "Reward Deleted",
+          text2: "Reward removed successfully",
+        });
       } catch (error) {
         Alert.alert(
           "Error",
@@ -522,6 +595,11 @@ useFocusEffect(
         }
       );
       setNotifications((prev) => prev.filter((n) => n._id !== notificationId));
+      Toast.show({
+        type: "success",
+        text1: "Notification Cleared",
+        text2: "Notification dismissed successfully",
+      });
     } catch (error) {
       Alert.alert("Error", "Failed to clear notification: " + error.message);
     }
@@ -537,6 +615,11 @@ useFocusEffect(
         });
         setNotifications([]);
         setModalVisible(false);
+        Toast.show({
+          type: "success",
+          text1: "Notifications Cleared",
+          text2: "All notifications dismissed successfully",
+        });
       } catch (error) {
         Alert.alert("Error", "Failed to clear notifications: " + error.message);
       }
@@ -557,6 +640,11 @@ useFocusEffect(
           r._id === redemptionId ? { ...r, status: "approved" } : r
         )
       );
+      Toast.show({
+        type: "success",
+        text1: "Redemption Approved",
+        text2: "Redemption request approved successfully",
+      });
     } catch (error) {
       Alert.alert("Error", "Failed to approve redemption: " + error.message);
     }
@@ -575,12 +663,16 @@ useFocusEffect(
           r._id === redemptionId ? { ...r, status: "rejected" } : r
         )
       );
+      Toast.show({
+        type: "success",
+        text1: "Redemption Rejected",
+        text2: "Redemption request rejected successfully",
+      });
     } catch (error) {
       Alert.alert("Error", "Failed to reject redemption: " + error.message);
     }
   };
 
-  // Data for FlatList to render tab content
   const tabData = [{ key: currentTab }];
 
   const renderTabContent = ({ item }) => {
@@ -588,16 +680,16 @@ useFocusEffect(
       case "home":
         return (
           <View style={styles.tabContent}>
-            <View style={[styles.header]}>
-              <Text style={[styles.title, { color: colors.text ,paddingRight:10}]}>
-                Admin Dashboard
+            <View style={[styles.header, { position: "relative", top: 10 }]}>
+              <Text style={[styles.title, { color: colors.text, padding: 10 }]}>
+                SHOP ADMIN
               </Text>
               <View style={styles.headerButtons}>
                 <ThemeToggle style={styles.toggle} />
                 <View style={styles.buttonContainer}>
                   <Button
                     mode="contained"
-                  style={{position:'relative',right:10}}
+                    style={{ position: "relative", right: 10 }}
                     buttonColor={colors.error}
                     textColor="#fff"
                     onPress={() =>
@@ -618,7 +710,11 @@ useFocusEffect(
             <View
               style={[
                 styles.card,
-                { backgroundColor: isDarkMode ? "#1e1e1e" : "#fff" },
+                {
+                  backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
+                  position: "relative",
+                  bottom: 10,
+                },
               ]}
             >
               <Card.Title
@@ -659,71 +755,184 @@ useFocusEffect(
                 </Text>
               </Card.Content>
             </View>
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: isDarkMode ? "#1e1e1e" : "#fff" },
-              ]}
+  <View
+              style={{
+                backgroundColor: colors.background,
+                borderRadius: 16,
+                padding: 20,
+                margin: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 5,
+              }}
             >
               <Card.Content>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text, marginBottom: 16 }}>
                   Send Coins 💰
                 </Text>
-                <TextInput
-                  label="User Name/ID/Number/UniqueCode"
-                  value={coinSettings.userId}
-                  onChangeText={(text) =>
-                    setCoinSettings({ ...coinSettings, userId: text })
-                  }
-                  style={styles.input}
-                  theme={{
-                    colors: { text: colors.text, primary: colors.primary },
-                  }}
-                  mode="outlined"
-                />
-                <TextInput
-                  label="Coin Amount"
-                  value={coinSettings.amount}
-                  onChangeText={(text) =>
-                    setCoinSettings({ ...coinSettings, amount: text })
-                  }
-                  style={styles.input}
-                  theme={{
-                    colors: { text: colors.text, primary: colors.primary },
-                  }}
-                  mode="outlined"
-                  keyboardType="numeric"
-                />
-                <View style={styles.buttonContainer}>
-                  <Button
-                    mode="contained"
-                    style={styles.button}
-                    buttonColor={colors.primary}
-                    textColor="#fff"
-                    contentStyle={{
+                <View style={{ flexDirection: "row", marginTop: 12, alignItems: "center" }}>
+                  <Text style={{ color: colors.text, fontSize: 16, flex: 0.7 }}>Invoice:</Text>
+                  <Text style={{ color: colors.text, fontWeight: "bold", fontSize: 24 }}>#{invoice}</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 10 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, flex: 0.8 }}>Amount:</Text>
+                  <TextInput
+                    keyboardType="numeric"
+                    value={amount}
+                    onChangeText={setAmount}
+                    placeholder="₹10000"
+                    placeholderTextColor={colors.placeholder}
+                    underlineColorAndroid="transparent"
+                    style={{
+                      flex: 1,
+                      backgroundColor: colors.input,
+                      borderRadius: 8,
+                      color: colors.text,
+                      fontSize: 22,
+                    }}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", marginBottom: 12, alignItems: "center" }}>
+                  <Text style={{ color: colors.text, fontSize: 16, width: 105 }}>Send To:</Text>
+                  <View
+                    style={{
+                      flex: 1,
                       flexDirection: "row",
                       alignItems: "center",
+                      backgroundColor: colors.input,
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
                     }}
-                    onPress={() => handleButtonPress(handleSendCoins)}
                   >
                     <Text
-                      style={{ color: "#fff", marginRight: 8, fontSize: 16 }}
+                      style={{
+                        color: colors.text,
+                        fontSize: 16,
+                        fontWeight: "600",
+                        position: "relative",
+                        left: 15,
+                      }}
                     >
-                      Send Coins
+                      {adminUser?.uniqueCode || "N/A"}
                     </Text>
-                    <MaterialCommunityIcons
-                      name="send"
-                      size={20}
-                      color="#fff"
+                    <TextInput
+                      placeholder="01"
+                      keyboardType="numeric"
+                      value={receiverCode}
+                      onChangeText={(text) => setReceiverCode(text)}
+                      placeholderTextColor={colors.placeholder}
+                      underlineColorAndroid="transparent"
+                      style={{
+                        flex: 1,
+                        color: colors.text,
+                        fontSize: 16,
+                        padding: 0,
+                        margin: 0,
+                      }}
                     />
-                  </Button>
+                  </View>
                 </View>
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, marginBottom: 8 }}>
+                    Reward%:            {rewardPercentage}%
+                  </Text>
+                  <Slider
+                    style={{ width: "100%", height: 40 }}
+                    minimumValue={0}
+                    maximumValue={rewardOptions.length - 1}
+                    step={1}
+                    value={rewardOptions.indexOf(rewardPercentage)}
+                    minimumTrackTintColor={colors.primary}
+                    maximumTrackTintColor="#ccc"
+                    thumbTintColor={colors.primary}
+                    onValueChange={handleSliderChange}
+                  />
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                    {rewardOptions.map((value) => (
+                      <Text
+                        key={value}
+                        style={{
+                          fontSize: 10,
+                          color: rewardPercentage === value ? colors.primary : colors.text,
+                          fontWeight: rewardPercentage === value ? "bold" : "normal",
+                        }}
+                      >
+                        {value}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, width: 80 }}>Expiry:</Text>
+                  <View
+                    style={{
+                      flex: 1,
+                      backgroundColor: colors.input,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Picker
+                      selectedValue={expiry}
+                      onValueChange={(itemValue) => setExpiry(itemValue)}
+                      dropdownIconColor={colors.text}
+                      style={{
+                        color: colors.text,
+                        width: "100%",
+                      }}
+                    >
+                      <Picker.Item label="3 months" value="3 months" />
+                      <Picker.Item label="6 months" value="6 months" />
+                      <Picker.Item label="9 months" value="9 months" />
+                      <Picker.Item label="12 months" value="12 months" />
+                    </Picker>
+                  </View>
+                </View>
+                <Button
+                  mode="contained"
+                  buttonColor={colors.primary}
+                  textColor="#fff"
+                  contentStyle={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 8,
+                  }}
+                  labelStyle={{ fontSize: 16 }}
+                  onPress={() =>
+                    makepayment(
+                      invoice,
+                      amount,
+                      rewardPercentage,
+                      expiry,
+                      `${adminUser?.uniqueCode}${receiverCode}`
+                    )
+                  }
+                  style={{
+                    borderRadius: 10,
+                    shadowColor: "#000",
+                    shadowOpacity: 0.15,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowRadius: 4,
+                    elevation: 3,
+                    marginTop: 10,
+                  }}
+                >
+                  <Text style={{ color: "#fff", marginRight: 8 }}>Get Reward</Text>
+                  <MaterialCommunityIcons name="send" size={20} color="#fff" />
+                </Button>
               </Card.Content>
-            </View>
+ </View>
             <View
               style={[
                 styles.card,
-                { backgroundColor: isDarkMode ? "#1e1e1e" : "#fff" },
+                {
+                  backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
+                  position: "relative",
+                  top: 10,
+                },
               ]}
             >
               <Card.Title
@@ -764,7 +973,7 @@ useFocusEffect(
                           resizeMode="contain"
                           style={styles.carouselItem}
                           imageStyle={styles.carouselImage}
-                          defaultSource={require("../../assets/placeholder.avif")}
+                          defaultSource={require("../../assets/placeholder.webp")}
                           onError={() =>
                             Alert.alert("Error", "Failed to load reward image")
                           }
@@ -1156,7 +1365,7 @@ useFocusEffect(
                         resizeMode="contain"
                         style={styles.rewardCardImage}
                         imageStyle={styles.rewardCardImageStyle}
-                        defaultSource={require("../../assets/placeholder.avif")}
+                        defaultSource={require("../../assets/placeholder.webp")}
                         onError={() =>
                           Alert.alert("Error", "Failed to load reward image")
                         }
@@ -1556,7 +1765,7 @@ useFocusEffect(
   };
 
   return (
-    <View
+   <View
       style={[
         styles.container,
         { backgroundColor: isDarkMode ? "#121212" : "#f0f4f8" },
@@ -1707,6 +1916,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
   tabBar: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -1730,8 +1944,8 @@ const styles = StyleSheet.create({
     ...(isWeb ? { transition: "transform 0.2s ease" } : {}),
   },
   activeTab: {
-    borderBottomWidth: 4,
-    borderBottomColor: "#FFD700",
+    borderBottomWidth: 2,
+    borderBottomColor: "#FFFFFF",
     ...(isWeb ? { transform: [{ scale: 1.05 }] } : {}),
   },
   card: {
@@ -1762,12 +1976,6 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     fontSize: 16,
     height: 50,
-  },
-  button: {
-    marginVertical: 10,
-    borderRadius: 12,
-    paddingVertical: 8,
-    minHeight: 50,
   },
   actionButton: {
     marginHorizontal: 8,

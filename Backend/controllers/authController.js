@@ -1,23 +1,26 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const generateCode = require('../utils/generateCode');
 
-// Register
 const registerUser = async (req, res) => {
   try {
     const { name, mobile, password, location, adminId, role } = req.body;
 
-    // Check for existing user
+    if (!name || !mobile || !password || !role) {
+      return res.status(400).json({ message: 'Name, mobile, password, and role are required' });
+    }
+
     const existingUser = await User.findOne({ mobile });
     if (existingUser) {
       return res.status(400).json({ message: 'Mobile number already registered' });
     }
 
-    // Check admin if role is user
+    let userUniqueCode = null;
+    let assignedAdmin = null;
+
     if (role === 'user') {
       if (!adminId) {
-        return res.status(400).json({ message: 'Admin selection is required for user registration' });
+        return res.status(400).json({ message: 'Admin ID is required for user registration' });
       }
 
       const admin = await User.findOne({ _id: adminId, role: 'admin' });
@@ -25,35 +28,42 @@ const registerUser = async (req, res) => {
         return res.status(400).json({ message: 'Invalid admin selected' });
       }
 
-      const count = await User.countDocuments({ adminId });
-      if (admin.userLimit && count >= admin.userLimit) {
+      const userCount = await User.countDocuments({ adminId });
+      if (admin.userLimit && userCount >= admin.userLimit) {
         return res.status(400).json({ message: 'Admin user limit reached' });
       }
+
+      const newUserNumber = String(userCount + 1).padStart(2, '0');
+      userUniqueCode = `${admin.uniqueCode}${newUserNumber}`;
+      assignedAdmin = adminId;
     }
 
     if (role === 'superadmin') {
       return res.status(403).json({ message: 'Cannot create superadmin through this endpoint' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    const uniqueCode = generateCode();
 
-    // Create and save user
+    // Generate uniqueCode for admin
+    const uniqueCode =
+      role !== 'user'
+        ? name.split(' ').map(word => word[0]).join('').toUpperCase() + mobile.slice(-3)
+        : undefined;
+
     const user = new User({
       name,
       mobile,
       password: hashedPassword,
       plainPassword: password,
+      role,
       location,
-      role: role || 'user',
+      adminId: assignedAdmin,
+      userUniqueCode,
       uniqueCode,
-      adminId: role === 'user' ? adminId : null,
     });
 
     await user.save();
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, role: user.role },
       process.env.JWT_SECRET || 'your_jwt_secret_key',
@@ -68,34 +78,34 @@ const registerUser = async (req, res) => {
         name: user.name,
         mobile: user.mobile,
         role: user.role,
-        uniqueCode: user.uniqueCode,
-         adminId:user.adminId
+        uniqueCode: user.uniqueCode || user.userUniqueCode,
+        adminId: user.adminId,
       },
     });
-
   } catch (error) {
     console.error('Registration error:', error);
     return res.status(500).json({ message: 'Server error during registration' });
   }
 };
 
-// Login
 const loginUser = async (req, res) => {
   try {
-    const { mobile, password, role } = req.body; 
+    const { mobile, password, role } = req.body;
+
+    if (!mobile || !password || !role) {
+      return res.status(400).json({ message: 'Mobile, password and role are required' });
+    }
 
     const user = await User.findOne({ mobile });
-
     if (!user) {
       return res.status(400).json({ message: 'Invalid mobile number or password' });
     }
 
     if (user.role !== role) {
-      return res.status(400).json({ message: 'Invalid role for this user' });
+      return res.status(400).json({ message: 'Incorrect role for this user' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid mobile number or password' });
     }
@@ -113,17 +123,15 @@ const loginUser = async (req, res) => {
         name: user.name,
         mobile: user.mobile,
         role: user.role,
-        uniqueCode: user.uniqueCode,
-        adminId:user.adminId
+        uniqueCode: user.uniqueCode || user.userUniqueCode,
+        adminId: user.adminId,
       },
     });
-
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ message: 'Server error during login' });
   }
 };
-
 
 module.exports = {
   registerUser,

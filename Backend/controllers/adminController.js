@@ -2,7 +2,8 @@ const User = require('../models/User');
 const Reward = require('../models/Reward');
 const Notification = require('../models/Notification');
 const Redemption = require('../models/Redemption');
-const PaymentHistory=require('../models/paymentHistory')
+const PaymentHistory=require('../models/paymentHistory');
+const { sendNotificationToUser } = require('../socket');
 //  Get all admins
 const getAllAdmins = async (req, res) => {
   try {
@@ -130,25 +131,7 @@ const deleteReward = async (req, res) => {
 };
 
 
-//  Delete a single notification
-const deleteNotification = async (req, res) => {
-  try {
-    await Notification.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Notification cleared' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete notification' });
-  }
-};
 
-//  Delete all notifications for logged-in user
-const deleteAllNotification = async (req, res) => {
-  try {
-    await Notification.deleteMany({ userId: req.user.userId });
-    res.json({ message: 'All notifications cleared' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete all notifications' });
-  }
-};
 
 //  Approve a redemption request
 const approveRedemption = async (req, res) => {
@@ -192,17 +175,6 @@ const getRewards = async (req, res) => {
 
 };
 
-const getNotifications = async (req, res) => {
- try {
-    const { adminId } = req.params;
-    const notifications = await Notification.find({ adminId }).sort({ createdAt: -1 });
-    res.json(notifications);
-  } catch (error) {
-    console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
-  }
-
-};
 
 const getRedemptions = async (req, res) => {
   try {
@@ -215,71 +187,83 @@ const getRedemptions = async (req, res) => {
   }
 };
 
+
+
 const makepayment = async (req, res) => {
   try {
     const {
       invoice,
       amount,
       rewardPercentage,
-      expiryMonth, // expects a string like "3 months"
+      expiryMonth,
       senderId,
       receiverUniquecode
     } = req.body;
 
-    // Validate expiryMonth format (e.g., "3 months")
-    const [numStr, unit] = expiryMonth.split(" ");
+    const [numStr, unit] = expiryMonth.trim().split(" ");
     const num = parseInt(numStr);
-    if (isNaN(num) || unit !== "months") {
+    if (isNaN(num) || unit.toLowerCase() !== "months") {
       return res.status(400).json({ error: "Invalid expiryMonth format. Use format like '3 months'" });
     }
 
-    // Calculate expiry date from today
     const expiryDate = new Date();
-    expiryDate.setMonth(expiryDate.getMonth() + num); // Add N months
+    expiryDate.setMonth(expiryDate.getMonth() + num);
 
-    // Find receiver
     const receiver = await User.findOne({ userUniqueCode: receiverUniquecode });
-    if (!receiver) {
-      console.log("No receiver found with unique code mentioned");
-      return res.status(404).json({ error: "Receiver not found with provided unique code" });
-    }
+    if (!receiver) return res.status(404).json({ error: "Receiver not found" });
 
-    // Create payment history entry
+    const updatePoint = Math.round((rewardPercentage / 100) * amount);
+    receiver.points = (receiver.points || 0) + updatePoint;
+    await receiver.save();
+
     const paymentData = await PaymentHistory.create({
       invoice,
       amount,
       rewardPercentage,
-      expiryMonth: expiryDate, // now a Date object
+      expiryMonth: expiryDate,
       senderId,
       receiverId: receiver._id
     });
 
-    // Find sender/admin
     const admindata = await User.findById(senderId);
-    if (!admindata) {
-      console.log("No sender ID found, check it");
-      return res.status(404).json({ error: "Sender ID not found" });
-    }
+    if (!admindata) return res.status(404).json({ error: "Sender ID not found" });
 
-    // Ensure paymentHistory array exists
-    if (!admindata.paymentHistory) {
+    await Notification.create({
+      message: `Transferred ${updatePoint} points from ${admindata.name}`,
+      userId: receiver._id,
+    });
+
+    if (!Array.isArray(admindata.paymentHistory)) {
       admindata.paymentHistory = [];
     }
-
-    // Add payment record to sender's history
     admindata.paymentHistory.push(paymentData._id);
     await admindata.save();
 
-    // Done
-    res.status(200).json({ message: "Payment recorded successfully", payment: paymentData });
+    // ✅ Emit notification to the receiver in real-time
+    sendNotificationToUser(receiver._id.toString(), {
+      type: "payment",
+      message: `You received ${updatePoint} points from ${admindata.name}`,
+      amount,
+      points: updatePoint,
+      senderName: admindata.name,
+    });
+
+    res.status(200).json({
+      message: "Payment recorded successfully",
+      payment: paymentData
+    });
   } catch (error) {
     console.error("Payment error:", error);
     if (error.code === 11000) {
       return res.status(409).json({ error: "Duplicate invoice number" });
     }
-    res.status(500).json({ error: "Something went wrong while making payment" });
+    res.status(500).json({ error: "Something went wrong" });
   }
 };
+
+module.exports = { makepayment };
+
+
 
 
 const fetchInvoice = async (req, res) => {
@@ -299,6 +283,75 @@ const fetchInvoice = async (req, res) => {
   }
 };
 
+const updateAdmin = async (req, res) => {
+  try {
+    const { adminId, name, phoneno } = req.body;
+console.log(adminId, name, phoneno);
+
+    // Validate inputs
+    if (!adminId) {
+      return res.status(400).json({ error: 'Admin ID is required' });
+    }
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Name is required and cannot be empty' });
+    }
+    if (!phoneno || !/^\d{10}$/.test(phoneno)) {
+      return res.status(400).json({ error: 'Phone number must be a valid 10-digit number' });
+    }
+
+    // Find admin by ID and role
+    const admin = await User.findById(adminId);
+    if (!admin || admin.role !== 'admin') {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    // Apply updates
+    admin.name = name.trim();
+    admin.mobile = phoneno;
+
+    // Save only if changes were made
+    if (admin.isModified()) {
+      await admin.save();
+    }
+
+    // Return minimal admin data
+    res.status(200).json({
+      message: 'Admin updated successfully',
+      admin: {
+        _id: admin._id,
+        name: admin.name,
+        mobile: admin.mobile,
+        role: admin.role,
+        uniqueCode: admin.uniqueCode,
+      },
+    });
+  } catch (error) {
+    console.error('Update admin error:', error);
+    res.status(500).json({ error: 'Failed to update admin due to server error' });
+  }
+};
+
+const getAdminRelatedPayments = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+
+    const payments = await PaymentHistory.find({
+      $or: [{ senderId: adminId }, { receiverId: adminId }],
+    })
+      .populate('senderId')
+      .populate('receiverId');
+
+    res.status(200).json({
+      message: 'All payments related to admin',
+      count: payments.length,
+      payments,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 
 //  Export all functions
 module.exports = {
@@ -310,13 +363,12 @@ module.exports = {
   addReward,
   editReward,
   deleteReward,
-  deleteNotification,
-  deleteAllNotification,
   approveRedemption,
   rejectRedemption,
    getRewards,
-  getNotifications,
   getRedemptions,
   makepayment,
-  fetchInvoice
+  fetchInvoice,
+  updateAdmin,
+  getAdminRelatedPayments 
 };

@@ -9,9 +9,11 @@ import { ActivityIndicator, View } from 'react-native';
 import { ThemeContext, LightTheme, DarkModeTheme } from './src/ThemeContext';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
-import UserDashboard from './src/screens/UserDashboard';
-import AdminDashboard from './src/screens/AdminDashboard';
+import UserDashboard from './src/screens/User/UserDashboard';
+import AdminDashboard from './src/screens/Shopkeeper/AdminDashboard';
 import Toast from 'react-native-toast-message';
+import SuccessScreen from './src/screens/SuccessScreen';
+import ReceiverSuccess from './src/screens/RecieverSuccess';
 
 const Stack = createStackNavigator();
 
@@ -90,6 +92,8 @@ export default function App() {
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="UserDashboard" component={UserDashboard} />
             <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+<Stack.Screen name="SuccessScreen" component={SuccessScreen} options={{ headerShown: false }} />
+<Stack.Screen name="ReceiverSuccess" component={ReceiverSuccess} options={{ headerShown: false }} />
           </Stack.Navigator>
         </NavigationContainer>
         <Toast />

@@ -17,7 +17,9 @@ const {
   getNotifications,
   getRedemptions,
   makepayment,
-  fetchInvoice
+  fetchInvoice,
+  updateAdmin,
+  getAdminRelatedPayments
 } = require('../controllers/adminController');
 
 const verifyToken = require('../middleware/verifyToken');
@@ -39,7 +41,7 @@ router.post('/user/:id/addcoin', verifyToken, sendToken);
 
 
 router.get('/rewards/:adminId', verifyToken, getRewards);
-router.get('/notifications/:adminId', verifyToken, getNotifications);
+
 router.get('/redemptions/:adminId', verifyToken, getRedemptions);
 
 
@@ -52,12 +54,6 @@ router.put('/admin/reward/:rewardId', verifyToken, editReward);
 // DELETE - Delete a reward
 router.delete('/admin/reward/:rewardId', verifyToken, deleteReward);
 
-// DELETE - Delete a specific notification
-router.delete('/notification/:id', verifyToken, deleteNotification);
-
-// DELETE - Delete all notifications for logged-in user
-router.delete('/notifications', verifyToken, deleteAllNotification);
-
 // PUT - Approve a redemption
 router.put('/redemption/:id/approve', verifyToken, approveRedemption);
 
@@ -65,6 +61,12 @@ router.put('/redemption/:id/approve', verifyToken, approveRedemption);
 router.put('/redemption/:id/reject', verifyToken, rejectRedemption);
 
 
+router.put('/updateAdmin/:id', updateAdmin);
+
 router.post('/makepayment',makepayment)
 router.post('/fetchInvoice',verifyToken,fetchInvoice)
+
+
+router.get('/getAdminRelatedPayments/:adminId',getAdminRelatedPayments);
+
 module.exports = router;

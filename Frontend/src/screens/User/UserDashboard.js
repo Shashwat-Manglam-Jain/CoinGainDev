@@ -19,12 +19,14 @@ import {
 import { Button, Card, TextInput, useTheme, Avatar, Badge } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { ThemeContext } from '../ThemeContext';
-import ThemeToggle from '../components/ThemeToggle';
+import { ThemeContext } from '../../ThemeContext';
+import ThemeToggle from '../../components/ThemeToggle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
-import { API_BASE_URL } from '../../utils/api';
+import { API_BASE_URL } from '../../../utils/api';
+import { listenToNotifications, registerUser } from '../../../utils/socket';
+import LottieView from 'lottie-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 50;
@@ -70,6 +72,44 @@ export default function UserDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [redemptions, setRedemptions] = useState([]);
   const [rewards, setRewards] = useState([]);
+
+
+const [notification, setNotification] = useState(null);
+  const [showLottie, setShowLottie] = useState(false);
+ 
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    registerUser(user._id); // Join socket room
+
+    const unsubscribe = listenToNotifications((data) => {
+      setNotification(data.message);
+      setShowLottie(true);
+
+      // Navigate to ReceiverSuccess screen with data
+      navigation.navigate('ReceiverSuccess', {
+        points: data.points,
+        amount: data.amount,
+        senderName: data.senderName,
+        receiverUniquecode: user.name,
+      });
+
+      // Reset animation + notification after delay
+      setTimeout(() => {
+        setShowLottie(false);
+        setNotification(null);
+      }, 4000);
+    });
+
+    // Clean up when component unmounts
+    return () => {
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [user, navigation]);
+
 
   // Fetch user data
   const fetchUser = useCallback(async (id, retries = 2) => {
@@ -669,7 +709,7 @@ export default function UserDashboard() {
                         resizeMode="cover"
                         style={styles.carouselItem}
                         imageStyle={styles.carouselImage}
-                        defaultSource={require('../../assets/placeholder.webp')}
+                        defaultSource={require('../../../assets/placeholder.webp')}
                         onError={() => console.log('Failed to load reward image')}
                       >
                         {item.tag && (
@@ -1044,7 +1084,7 @@ export default function UserDashboard() {
   const unreadNotifications = notifications.filter((n) => !n.read).length;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0A0A0A' : '#F0F4F8' }]}>
+            <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0A0A0A' : '#F0F4F8' }]}>
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -1174,6 +1214,7 @@ export default function UserDashboard() {
         ))}
       </View>
     </SafeAreaView>
+
   );
 }
 

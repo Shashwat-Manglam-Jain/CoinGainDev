@@ -101,11 +101,6 @@ const getRedemptionsData = async (req, res) => {
 
     const data = await Redemption.find({ userId: id }).populate('rewardId', 'name image');
 
-    if (!data || data.length === 0) {
-      console.log('No redemption data found');
-      return res.status(404).json({ message: 'No redemption data found' });
-    }
-
     // Format response to match frontend expectations
     const formattedData = data.map((redemption) => ({
       _id: redemption._id,
@@ -120,13 +115,12 @@ const getRedemptionsData = async (req, res) => {
     }));
 
     console.log('Successfully retrieved redemption data');
-    res.status(200).json(formattedData);
+    res.status(200).json(formattedData|| []);
   } catch (error) {
     console.error('Error occurred:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 // Get notifications for a user
 const getNotifications = async (req, res) => {
   try {
@@ -134,13 +128,9 @@ const getNotifications = async (req, res) => {
 
     const data = await Notification.find({ userId: id });
 
-    if (!data || data.length === 0) {
-      console.log('No notification data found');
-      return res.status(404).json({ message: 'No notification data found' });
-    }
-
     console.log('Successfully retrieved notification data');
-    res.status(200).json(data);
+
+    res.status(200).json(data || []);
   } catch (error) {
     console.error('Error occurred:', error);
     res.status(500).json({ message: 'Server error' });

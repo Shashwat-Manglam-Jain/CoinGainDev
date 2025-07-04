@@ -16,6 +16,7 @@ import {
   Animated,
   Alert,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { Button, Card, TextInput, useTheme, Avatar, Badge } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -121,6 +122,7 @@ const [notification, setNotification] = useState(null);
         _id: userData._id || null,
         name: userData.name || null,
         mobile: userData.mobile || null,
+        userUniqueCode:userData.userUniqueCode|| null,
         location: userData.location || null,
         points: userData.points || 0,
         createdAt: userData.createdAt || null,
@@ -137,6 +139,7 @@ const [notification, setNotification] = useState(null);
         _id: fetchedUser._id || null,
         name: fetchedUser.name || null,
         mobile: fetchedUser.mobile || null,
+        userUniqueCode: fetchedUser.userUniqueCode|| null,
         location: fetchedUser.location || null,
         points: fetchedUser.points || 0,
         createdAt: fetchedUser.createdAt || null,
@@ -151,7 +154,11 @@ const [notification, setNotification] = useState(null);
         return fetchUser(id, retries - 1);
       }
       console.error('Fetch user error:', error.message);
-      Alert.alert('Error', 'Failed to load user data. Using local data.');
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to load user data. Using local data.',
+});
       return userData;
     } finally {
       setLoading(false);
@@ -184,7 +191,11 @@ const [notification, setNotification] = useState(null);
       }
       console.error('Fetch admin error:', error.message);
       setAdmin({ name: null, uniqueCode: null, mobile: null });
-      Alert.alert('Error', 'Failed to load admin data.');
+  Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to load admin data.',
+});
     } finally {
       setLoading(false);
     }
@@ -212,7 +223,11 @@ const [notification, setNotification] = useState(null);
       }
       console.error('Fetch rewards error:', error.message);
       setRewards([]);
-      Alert.alert('Error', 'Failed to load rewards.');
+  Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to load rewards.',
+});
     } finally {
       setLoading(false);
     }
@@ -237,7 +252,11 @@ const [notification, setNotification] = useState(null);
         return fetchNotifications(userId, retries - 1);
       }
       console.error('Fetch notifications error:', error.message);
-      Alert.alert('Error', 'Failed to load notifications.');
+     Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to load notifications.',
+});
     } finally {
       setLoading(false);
     }
@@ -262,7 +281,12 @@ const [notification, setNotification] = useState(null);
         return fetchRedemptions(userId, retries - 1);
       }
       console.error('Fetch redemptions error:', error.message);
-      Alert.alert('Error', 'Failed to load redemptions.');
+     
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to load redemptions.',
+});
     } finally {
       setLoading(false);
     }
@@ -287,7 +311,12 @@ const [notification, setNotification] = useState(null);
         return saveUser(updatedUser, retries - 1);
       }
       console.error('Save user error:', error.message);
-      Alert.alert('Error', 'Failed to save user data.');
+
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to save user data.',
+});
     } finally {
       setLoading(false);
     }
@@ -321,7 +350,12 @@ const [notification, setNotification] = useState(null);
         return saveNotification(notification, retries - 1);
       }
       console.error('Save notification error:', error.message);
-      Alert.alert('Error', 'Failed to save notification.');
+
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to save notification.',
+});
       throw error;
     } finally {
       setLoading(false);
@@ -350,7 +384,13 @@ const [notification, setNotification] = useState(null);
         return deleteNotification(notificationilibre1, retries - 1);
       }
       console.error('Delete notification error:', error.message);
-      Alert.alert('Error', 'Failed to delete notification.');
+  
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to delete notification.',
+});
+
     } finally {
       setLoading(false);
     }
@@ -412,7 +452,11 @@ const [notification, setNotification] = useState(null);
           return saveRedemptions(rewardId, retries - 1);
         }
         console.error('Save redemptions error:', error.message);
-        Alert.alert('Error', error.message || 'Failed to save redemptions.');
+  Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: error.message || 'Failed to save redemptions.',
+});
         throw error;
       } finally {
         setLoading(false);
@@ -452,7 +496,11 @@ const [notification, setNotification] = useState(null);
         return deleteRedemption(redemptionId, rewardName, retries - 1);
       }
       console.error('Delete redemption error:', error.message);
-      Alert.alert('Error', 'Failed to cancel redemption.');
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to cancel redemption.',
+});
     } finally {
       setLoading(false);
     }
@@ -473,7 +521,11 @@ const [notification, setNotification] = useState(null);
       );
     } catch (error) {
       console.error('Mark all read error:', error.message);
-      Alert.alert('Error', 'Failed to mark notifications as read.');
+ Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to mark notifications as read.',
+});
     }
   }, [notifications, user]);
 
@@ -483,7 +535,11 @@ const [notification, setNotification] = useState(null);
       try {
         const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
         if (!userData._id) {
-          Alert.alert('Error', 'No user data found. Please log in.');
+        Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'No user data found. Please log in.',
+});
           navigation.replace('Login');
           return;
         }
@@ -496,7 +552,11 @@ const [notification, setNotification] = useState(null);
         ]);
       } catch (error) {
         console.error('Initial data load error:', error.message);
-        Alert.alert('Error', 'Failed to load initial data.');
+      Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to load initial data.',
+});
       }
     };
     loadData();
@@ -555,9 +615,18 @@ const [notification, setNotification] = useState(null);
       try {
         await AsyncStorage.clear();
         navigation.replace('Login');
-        Alert.alert('Success', 'Logged out successfully.');
+  Toast.show({
+  type: 'success',
+  text1: 'Success',
+  text2: 'Logged out successfully.',
+});
       } catch (error) {
-        Alert.alert('Error', 'Failed to log out.');
+       
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to log out.',
+});
         console.error('Logout error:', error);
       }
       setModalVisible(false);
@@ -578,10 +647,20 @@ const [notification, setNotification] = useState(null);
         try {
           await deleteNotification(notificationId);
           setModalVisible(false);
-          Alert.alert('Success', 'Notification dismissed.');
+        
+Toast.show({
+  type: 'success',
+  text1: 'Success',
+  text2: 'Notification dismissed.',
+});
         } catch (error) {
           setModalVisible(false);
-          Alert.alert('Error', 'Failed to dismiss notification.');
+       
+Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to dismiss notification.',
+});
           console.error('Clear notification error:', error);
         }
       });
@@ -599,10 +678,18 @@ const [notification, setNotification] = useState(null);
         try {
           await deleteRedemption(redemptionId, redemption.rewardId.name);
           setModalVisible(false);
-          Alert.alert('Success', 'Redemption cancelled.');
+      Toast.show({
+  type: 'success',
+  text1: 'Success',
+  text2: 'Redemption cancelled.',
+});
         } catch (error) {
           setModalVisible(false);
-          Alert.alert('Error', 'Failed to cancel redemption.');
+     Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to cancel redemption.',
+});
           console.error('Clear redemption error:', error);
         }
       });
@@ -615,13 +702,22 @@ const [notification, setNotification] = useState(null);
     (reward) => {
       setModalMessage(`Confirm redemption of ${reward.name}?`);
       setModalAction(() => async () => {
-        try {
+        try {setModalVisible(false);
           await saveRedemptions(reward._id);
-          setModalVisible(false);
-          Alert.alert('Success', 'Redemption request submitted.');
+          
+          Toast.show({
+  type: 'success',
+  text1: 'Success',
+  text2: 'Redemption request submitted.',
+});
+
         } catch (error) {
           setModalVisible(false);
-          Alert.alert('Error', 'Failed to process redemption.');
+      Toast.show({
+  type: 'error',
+  text1: 'Error',
+  text2: 'Failed to process redemption.',
+});
           console.error('Redeem error:', error);
         }
       });
@@ -669,18 +765,23 @@ const [notification, setNotification] = useState(null);
                 )}
               />
               <Card.Content>
-                <Text style={[styles.cardText, { color: colors.text, fontWeight: 'bold' }]}>
+                <Text style={[styles.cardText, { color: colors.primary, fontWeight: 'bold' }]}>
                   {user?.name || 'Unknown'}
                 </Text>
+            
+                  <Text style={[styles.cardText, { color: colors.error, fontWeight: 'bold' }]}>
+                  Points: {user?.points ?? 0}
+                </Text>
                 <Text style={[styles.cardText, { color: colors.text }]}>
+                  Unique Code: {user?.userUniqueCode || 'Unknown'}
+                </Text>
+                    <Text style={[styles.cardText, { color: colors.text }]}>
                   Mobile: {user?.mobile || 'Unknown'}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.text }]}>
                   Location: {user?.location || 'Unknown'}
                 </Text>
-                <Text style={[styles.cardText, { color: colors.primary, fontWeight: 'bold' }]}>
-                  Points: {user?.points ?? 0}
-                </Text>
+              
                 <Text style={[styles.cardText, { color: colors.text }]}>
                   Joined: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
                 </Text>
@@ -868,7 +969,8 @@ const [notification, setNotification] = useState(null);
                             />
                           </View>
                           <Text style={[styles.progressText, { color: colors.text }]}>
-                            {pointsEarned}/{pointsRequired} points ({percentage.toFixed(2)}% achieved)
+                           <Text style={[styles.progressText, { color: colors.error }]}> {pointsEarned}</Text>
+                        /{pointsRequired} points ({percentage.toFixed(2)}% achieved)
                           </Text>
                           <Text style={[styles.progressText, { color: colors.text }]}>
                             {remainingPoints} points remaining
@@ -930,64 +1032,7 @@ const [notification, setNotification] = useState(null);
         return (
           <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
             <Text style={[styles.title, { color: colors.text }]}>Reward History</Text>
-            <View style={styles.rewardHistoryHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Redemptions</Text>
-              <TouchableOpacity
-                style={styles.toggleButton}
-                onPress={handleToggleRewardHistory}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.toggleButtonText, { color: colors.primary }]}>
-                  {showRewardHistory ? 'Hide' : 'Show'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {showRewardHistory && (
-              <FlatList
-                key={`reward-history-${showRewardHistory}`}
-                data={redemptions}
-                keyExtractor={(item) => item._id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity onPress={handleCardPress} activeOpacity={0.8}>
-                    <View style={[styles.historyItem, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-                      <Card.Content>
-                        {item.rewardId?.image && (
-                          <Image
-                            source={{ uri: item.rewardId.image }}
-                            style={styles.historyImage}
-                            resizeMode="cover"
-                            onError={() => console.log('Failed to load history image')}
-                          />
-                        )}
-                        <Text style={[styles.historyName, { color: colors.text }]}>
-                          {item.rewardId?.name || 'Unknown'}
-                        </Text>
-                        <Text style={[styles.historyDetails, { color: colors.text }]}>
-                          Redeemed: {new Date(item.redeemedAt).toLocaleString()} | Status: {item.status}
-                        </Text>
-                        {item.status === 'pending' && (
-                          <Button
-                            mode="outlined"
-                            onPress={() => handleClearRedemption(item._id)}
-                            textColor={colors.error}
-                            style={styles.clearButton}
-                          >
-                            <ButtonText>Cancel</ButtonText>
-                          </Button>
-                        )}
-                      </Card.Content>
-                    </View>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={() => (
-                  <Text style={[styles.emptyText, { color: colors.text }]}>No reward history.</Text>
-                )}
-                initialNumToRender={10}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-                removeClippedSubviews={true}
-              />
-            )}
+            
           </Animated.View>
         );
       case 'notifications':
@@ -998,7 +1043,7 @@ const [notification, setNotification] = useState(null);
               {notifications.length > 0 && (
                 <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                   <Button
-                    mode="outlined"
+                    mode="tramsparent"
                     onPress={handleMarkAllRead}
                     style={styles.markAllReadButton}
                     textColor={colors.primary}
@@ -1074,6 +1119,91 @@ const [notification, setNotification] = useState(null);
               windowSize={5}
               removeClippedSubviews={true}
             />
+          </Animated.View>
+        );
+        case 'redemption':
+            return (
+          <Animated.View style={[styles.tabContent, { opacity: fadeAnim }]}>
+            <View style={styles.rewardHistoryHeader}>
+              <Text style={[styles.title, { color: colors.text }]}>Your Redemptions</Text>
+              <TouchableOpacity
+                style={styles.toggleButton}
+                onPress={handleToggleRewardHistory}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.toggleButtonText, { color: colors.primary }]}>
+                  {showRewardHistory ? 'Hide' : 'Show'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {showRewardHistory && (
+              <FlatList
+                key={`reward-history-${showRewardHistory}`}
+                data={redemptions}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity onPress={handleCardPress} activeOpacity={0.8}>
+                    <View style={[styles.historyItem, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
+                      <Card.Content>
+              <View style={{ flexDirection: 'row',justifyContent:'space-around'}}>
+        {item.rewardId?.image && (
+          <Image
+            source={{ uri: item.rewardId.image }}
+            style={styles.historyImage}
+            resizeMode="cover"
+            onError={() => console.log('Failed to load history image')}
+          />
+        )}
+
+        <View style={{ flex: 1, marginLeft: 10 ,marginTop:10}}>
+          <Text style={[styles.historyName, { color: colors.text }]}>
+            {item.rewardId?.name || 'Unknown'}
+          </Text>
+
+          <Text
+            style={[
+              styles.historyName,
+              {
+                color:
+                  item.status === 'pending' || item.status === 'rejected'
+                    ? colors.error
+                    : 'green',
+              },
+            ]}
+          >
+            Status: {item.status}
+          </Text>
+
+       
+        
+        </View>
+      </View>
+                        <Text style={[styles.historyDetails, { color: colors.text }]}>
+                          Redeemed: {new Date(item.redeemedAt).toLocaleString()} | Status: {item.status}
+                        </Text>
+                        {item.status === 'pending' && (
+                          <Button
+                            mode="outlined"
+                            onPress={() => handleClearRedemption(item._id)}
+                            textColor={colors.error}
+                            style={styles.clearButton}
+                          >
+                            <ButtonText>Cancel</ButtonText>
+                          </Button>
+                        )}
+                      </Card.Content>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={() => (
+                  <Text style={[styles.emptyText, { color: colors.text }]}>No redemptions history.</Text>
+                )}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
+              />
+            )}
           </Animated.View>
         );
       default:
@@ -1171,7 +1301,7 @@ const [notification, setNotification] = useState(null);
           },
         ]}
       >
-        {['profile', 'rewards', 'history', 'notifications'].map((tab) => (
+        {['profile', 'rewards', 'history', 'notifications','redemption'].map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tabItem, currentTab === tab && styles.activeTab]}
@@ -1181,13 +1311,11 @@ const [notification, setNotification] = useState(null);
             <View style={styles.tabIconContainer}>
               <MaterialIcons
                 name={
-                  tab === 'profile'
-                    ? 'person'
-                    : tab === 'rewards'
-                    ? 'card-giftcard'
-                    : tab === 'history'
-                    ? 'history'
-                    : 'notifications'
+                  tab === 'profile'? 'person'
+                  : tab === 'rewards'? 'card-giftcard'
+                    : tab === 'history'? 'history'
+                         : tab ===  'notifications'?  'notifications'
+                    : 'assistant'
                 }
                 size={26}
                 color={currentTab === tab ? colors.primary : colors.text}
@@ -1208,7 +1336,9 @@ const [notification, setNotification] = useState(null);
                 ? 'Rewards'
                 : tab === 'history'
                 ? 'History'
-                : 'Notifications'}
+                 : tab === 'notifications'
+                ? 'Notifications'
+                : 'Redemption'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -1295,7 +1425,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
     marginTop: 6,
   },
@@ -1465,15 +1595,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 15,
+   paddingBottom:10,
     paddingHorizontal: 10,
   },
   toggleButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#6200EE',
+  
   },
   toggleButtonText: {
     fontSize: 16,

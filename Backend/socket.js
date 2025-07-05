@@ -31,4 +31,14 @@ const sendNotificationToUser = (userId, data) => {
   }
 };
 
-module.exports = { setupSocket, sendNotificationToUser };
+const sendApproveToAdmin = (adminId, data) => {
+  if (io) {
+    io.to(adminId).emit("new-approved-request", data);
+  }
+};
+
+module.exports = {
+  setupSocket,
+  sendNotificationToUser,
+  sendApproveToAdmin,
+};

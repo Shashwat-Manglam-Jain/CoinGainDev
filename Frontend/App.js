@@ -7,10 +7,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, View } from 'react-native';
 
 import { ThemeContext, LightTheme, DarkModeTheme } from './src/ThemeContext';
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
+import LoginScreen from './src/screens/Auth/LoginScreen';
+import RegisterScreen from './src/screens/Auth/RegisterScreen';
 import UserDashboard from './src/screens/User/UserDashboard';
-import AdminDashboard from './src/screens/Shopkeeper/AdminDashboard';
+import AdminDashboard from './src/screens/Admin/AdminDashboard';
 import Toast from 'react-native-toast-message';
 import SuccessScreen from './src/screens/SuccessScreen';
 import ReceiverSuccess from './src/screens/RecieverSuccess';
@@ -31,6 +31,8 @@ export default function App() {
         const userInfo = await AsyncStorage.getItem('userInfo');
         const parsedUser = JSON.parse(userInfo);
 
+
+        
         if (token && parsedUser?.role === 'admin') {
           setInitialRoute('AdminDashboard');
         } else if (token && parsedUser?.role === 'user') {

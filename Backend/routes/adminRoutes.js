@@ -42,7 +42,7 @@ router.post('/user/:id/addcoin', verifyToken, sendToken);
 
 router.get('/rewards/:adminId', verifyToken, getRewards);
 
-router.get('/redemptions/:adminId', verifyToken, getRedemptions);
+router.get('/redemptions/:adminId', getRedemptions);
 
 
 

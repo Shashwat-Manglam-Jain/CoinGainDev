@@ -6,7 +6,6 @@ import { ThemeContext } from '../../ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
-import Clipboard from '@react-native-community/clipboard';
 import { API_BASE_URL } from '../../../utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -20,24 +19,9 @@ const History = ({ users, rewards, redemptions, colors, isDarkMode }) => {
   const [sortDescending, setSortDescending] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
-  const [isClipboardAvailable, setIsClipboardAvailable] = useState(false);
 
-  // Check and log Clipboard availability
-  useEffect(() => {
-    const checkClipboard = () => {
-      const clipboardAvailable = isWeb ? !!navigator?.clipboard?.writeText : !!Clipboard && typeof Clipboard.setString === 'function';
-      console.log('Platform:', Platform.OS);
-      console.log('Clipboard module:', Clipboard);
-      console.log('Clipboard.setString exists:', Clipboard ? typeof Clipboard.setString : 'undefined');
-      console.log('isWeb:', isWeb, 'navigator.clipboard:', !!navigator?.clipboard?.writeText);
-      console.log('isClipboardAvailable:', clipboardAvailable);
-      setIsClipboardAvailable(clipboardAvailable);
-      if (!clipboardAvailable && !isWeb) {
-        console.warn('Clipboard module is not available. Ensure @react-native-community/clipboard is installed and linked correctly.');
-      }
-    };
-    checkClipboard();
-  }, []);
+
+
 
   // Calculate statistics
   const totalCoins = users.reduce((sum, u) => sum + (u.points || 0), 0);
@@ -111,48 +95,8 @@ const History = ({ users, rewards, redemptions, colors, isDarkMode }) => {
       return sortDescending ? dateB - dateA : dateA - dateB;
     });
 
-  // Copy payment details to clipboard
-  const handleCopyToClipboard = (payment) => {
-    console.log('Attempting to copy payment details:', payment._id);
-    try {
-      const text = `Invoice: #${payment.invoice}\n` +
-                   `Amount: ₹${payment.amount.toFixed(2)}\n` +
-                   `Reward Percentage: ${payment.rewardPercentage}%\n` +
-                   `Points: ${(payment.amount * payment.rewardPercentage / 100).toFixed(1)}\n` +
-                   `Expiry: ${formatDate(payment.expiryMonth)}\n` +
-                   `Sender: ${payment.senderId?.name || 'Unknown'}\n` +
-                   `Receiver: ${payment.receiverId?.name || 'Unknown'}\n` +
-                   `Date: ${formatDate(payment.createdAt)}`;
-      if (isWeb && navigator?.clipboard?.writeText) {
-        console.log('Using navigator.clipboard for web');
-        navigator.clipboard.writeText(text).then(() => {
-          Toast.show({
-            type: 'success',
-            text1: 'Copied',
-            text2: 'Payment details copied to clipboard',
-          });
-        });
-      } else if (Clipboard && typeof Clipboard.setString === 'function') {
-        console.log('Using Clipboard.setString for mobile');
-        Clipboard.setString(text);
-        Toast.show({
-          type: 'success',
-          text1: 'Copied',
-          text2: 'Payment details copied to clipboard',
-        });
-      } else {
-        throw new Error('Clipboard module is not available');
-      }
-    } catch (error) {
-      console.error('Clipboard error:', error.message);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to copy payment details. Clipboard functionality is not available.',
-      });
-    }
-  };
 
+ 
   // Open details modal
   const openDetailsModal = (payment) => {
     setSelectedPayment(payment);
@@ -318,14 +262,12 @@ const History = ({ users, rewards, redemptions, colors, isDarkMode }) => {
           style={styles.actionButton}
           buttonColor={colors.primary}
           textColor="#fff"
-          onPress={() => handleCopyToClipboard(selectedPayment)}
           labelStyle={styles.buttonLabel}
-          icon="content-copy"
-          disabled={!isClipboardAvailable}
+          icon="download"
           accessible
-          accessibilityLabel={isClipboardAvailable ? 'Copy payment details to clipboard' : 'Copy to clipboard unavailable'}
+       
         >
-          Copy to Clipboard
+          Download
         </Button>
         <Button
           mode="outlined"
@@ -424,7 +366,7 @@ const History = ({ users, rewards, redemptions, colors, isDarkMode }) => {
               initialNumToRender={10}
               maxToRenderPerBatch={10}
               windowSize={5}
-              removeClippedSubviews={true}
+            
               contentContainerStyle={{ paddingBottom: 20 }}
             />
           )}

@@ -12,6 +12,15 @@ export const listenToNotifications = (callback) => {
   socket.on("new-notification", callback);
 };
 
+export const listenToApprovedRequests = (callback) => {
+  socket.on('new-approved-request', callback);
+
+  return () => {
+    socket.off('new-approved-request', callback);
+  };
+};
+
+
 export const disconnectSocket = () => {
   if (socket) socket.disconnect();
 };

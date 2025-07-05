@@ -1,7 +1,6 @@
-import React, { useContext } from 'react';
-import { View, Text, FlatList, Platform, StyleSheet  } from 'react-native';
+import React from 'react';
+import { View, Text, FlatList, Platform, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card, Avatar, Button } from 'react-native-paper';
-import { ThemeContext } from '../../ThemeContext';
 
 const isWeb = Platform.OS === 'web';
 
@@ -10,9 +9,9 @@ const ButtonText = ({ children, style }) => (
     style={[
       {
         textAlign: 'center',
-        fontSize: 16,
-        fontWeight: '500',
-        lineHeight: Platform.OS === 'android' ? 28 : 20,
+        fontSize: 14,
+        fontWeight: '600',
+        lineHeight: Platform.OS === 'android' ? 24 : 20,
         flexWrap: 'wrap',
         flexShrink: 1,
         width: '100%',
@@ -28,6 +27,7 @@ const Notification = ({
   notifications,
   redemptions,
   handleClearNotification,
+  handlereadNotification,
   handleDismissAllNotifications,
   handleApproveRedemption,
   handleRejectRedemption,
@@ -39,48 +39,58 @@ const Notification = ({
   };
 
   const renderRedemption = ({ item }) => (
-    <View style={[styles.redemptionItem, { backgroundColor: isDarkMode ? '#2a2a2a' : '#f5f5f5' }]}>
+    <View style={[styles.redemptionItem, { backgroundColor: isDarkMode ? '#2a2a2a' : '#f8f9fa' }]}>
       <Avatar.Icon
-        size={36}
+        size={32}
         icon="account"
-        style={{ backgroundColor: colors.primary, marginRight: 10 }}
+        style={{ backgroundColor: colors.primary, marginRight: 12 }}
       />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.cardText, { color: colors.text, fontWeight: 'bold' }]}>
+      <View style={styles.textContainer}>
+        <Text
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          style={[styles.cardText, { color: colors.primary, fontWeight: '600' }]}
+        >
           {item.userId?.name || 'Unknown'}
         </Text>
-        <Text style={[styles.cardText, { color: colors.text }]}>
+        <Text
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          style={[styles.cardText, { color: colors.text, opacity: 0.8 }]}
+        >
           Reward: {item.rewardId?.name || 'Unknown'}
         </Text>
       </View>
       <View style={styles.buttonRow}>
-        <View style={styles.buttonContainer}>
-          <Button
-            mode="contained"
-            style={styles.actionButton}
-            buttonColor={colors.primary}
-            textColor="#fff"
-            onPress={() => handleButtonPress(() => handleApproveRedemption(item._id))}
-          >
-            <ButtonText>Approve</ButtonText>
-          </Button>
-        </View>
-        <View style={styles.buttonContainer}>
-          <Button
-            mode="contained"
-            style={styles.actionButton}
-            buttonColor={colors.error}
-            textColor="#fff"
-            onPress={() => handleButtonPress(() => handleRejectRedemption(item._id))}
-          >
-            <ButtonText>Reject</ButtonText>
-          </Button>
-        </View>
+        <TouchableOpacity
+          style={[styles.buttonContainer, { backgroundColor: '#28a745' }]}
+          onPress={() => handleButtonPress(() => handleApproveRedemption(item._id))}
+        >
+          <Avatar.Icon
+            size={28}
+            icon="check"
+            style={{ backgroundColor: 'transparent' }}
+            color="#fff"
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.buttonContainer, { backgroundColor: '#dc3545' }]}
+          onPress={() => handleButtonPress(() => handleRejectRedemption(item._id))}
+        >
+          <Avatar.Icon
+            size={28}
+            icon="close"
+            style={{ backgroundColor: 'transparent' }}
+            color="#fff"
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );
 
   const renderNotification = ({ item }) => (
+    <TouchableOpacity    onPress={() => handleButtonPress(() =>handlereadNotification(item._id))}
+     onLongPress={() => handleButtonPress(() =>handleClearNotification(item._id))}>
     <View
       style={[
         styles.notificationItem,
@@ -88,39 +98,46 @@ const Notification = ({
           backgroundColor: item.read
             ? isDarkMode
               ? '#2a2a2a'
-              : '#f5f5f5'
+              : '#f8f9fa'
             : isDarkMode
             ? '#333'
             : '#fff',
         },
       ]}
+     
     >
+    {!item.read && (
+  <View
+  style={{
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'red',
+    marginRight: 12,
+  }}
+   
+/>
+
+)}
+
+  
       <Avatar.Icon
-        size={36}
+        size={32}
         icon={item.read ? 'bell-outline' : 'bell'}
         style={{
           backgroundColor: item.read ? colors.secondary : colors.primary,
-          marginRight: 10,
+          marginRight: 12,
         }}
       />
       <View style={{ flex: 1 }}>
         <Text style={[styles.notificationText, { color: colors.text }]}>
           {item.message}
         </Text>
-        <Text style={[styles.notificationDate, { color: colors.text }]}>
+        <Text style={[styles.notificationDate, { color: colors.text, opacity: 0.7 }]}>
           {new Date(item.createdAt).toLocaleString()}
         </Text>
       </View>
-      <View style={styles.buttonContainer}>
-        <Button
-          mode="text"
-          textColor={colors.error}
-          onPress={() => handleButtonPress(() => handleClearNotification(item._id))}
-        >
-          <ButtonText>Dismiss</ButtonText>
-        </Button>
-      </View>
-    </View>
+    </View></TouchableOpacity>
   );
 
   return (
@@ -132,7 +149,7 @@ const Notification = ({
           titleStyle={[styles.cardTitle, { color: colors.text }]}
           left={() => (
             <Avatar.Icon
-              size={40}
+              size={36}
               icon="ticket"
               style={{ backgroundColor: colors.primary }}
             />
@@ -161,7 +178,7 @@ const Notification = ({
           titleStyle={[styles.cardTitle, { color: colors.text }]}
           left={() => (
             <Avatar.Icon
-              size={40}
+              size={36}
               icon="bell"
               style={{ backgroundColor: colors.primary }}
             />
@@ -169,13 +186,17 @@ const Notification = ({
           right={() =>
             notifications.length > 0 ? (
               <View style={styles.buttonContainer}>
-                <Button
-                  mode="text"
-                  textColor={colors.error}
-                  onPress={() => handleButtonPress(handleDismissAllNotifications)}
-                >
-                  <ButtonText>Dismiss All</ButtonText>
-                </Button>
+               <TouchableOpacity
+          style={[styles.buttonContainer, { backgroundColor: '#dc3545' }]}
+       onPress={() => handleButtonPress(handleDismissAllNotifications)}
+        >
+                  <Avatar.Icon
+            size={28}
+            icon="delete"
+            style={{ backgroundColor: 'transparent' }}
+            color="#fff"
+          />
+                </TouchableOpacity>
               </View>
             ) : null
           }
@@ -204,187 +225,100 @@ const Notification = ({
 export default Notification;
 
 const styles = StyleSheet.create({
-  container: {
+  tabContent: {
     flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 120,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  },
-  modal: {
-    width: 320,
-    padding: 20,
-    borderRadius: 16,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    borderTopWidth: 1,
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 15,
-    ...(isWeb ? { transition: 'transform 0.2s ease' } : {}),
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#FFFFFF',
-    ...(isWeb ? { transform: [{ scale: 1.05 }] } : {}),
+    width: '100%',
+    paddingBottom: 80,
+    backgroundColor: '#f0f4f8',
   },
   card: {
-    marginVertical: 10,
-    borderRadius: 16,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    padding: 15,
-  },
-  editContainer: {
-    padding: 15,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  searchBar: {
-    marginBottom: 20,
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    height: 50,
-  },
-  input: {
-    backgroundColor: 'transparent',
-    borderRadius: 12,
-    marginVertical: 10,
-    fontSize: 16,
-    height: 50,
-  },
-  actionButton: {
-    marginHorizontal: 8,
     marginVertical: 8,
     borderRadius: 12,
-    minWidth: 100,
-    paddingVertical: 6,
-    minHeight: 40,
-  },
-  submitButton: {
-    marginVertical: 15,
-    borderRadius: 12,
-    paddingVertical: 8,
-    minHeight: 50,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 10,
-    gap: 10,
-  },
-  buttonContainer: {
-    ...(isWeb ? { transition: 'transform 0.2s ease' } : {}),
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    padding: 12,
+    width: '100%',
+  
+    alignSelf: 'center',
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    marginVertical: 20,
+    marginVertical: 16,
     textAlign: 'center',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
   cardText: {
-    fontSize: 18,
-    marginVertical: 8,
+    fontSize: Platform.OS === 'android' ? 13 : 14,
+    marginVertical: 2,
     fontWeight: '500',
-    lineHeight: 24,
+    lineHeight: Platform.OS === 'android' ? 18 : 20,
   },
-  tabText: {
-    fontSize: 14,
-    marginTop: 6,
-    fontWeight: '600',
-  },
-  emptyText: {
-    textAlign: 'center',
-    fontSize: 18,
-    marginVertical: 15,
-    fontWeight: '500',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
+  textContainer: {
+    flex: 1,
+    flexShrink: 1,
+    flexGrow: 1,
+    marginRight: 8,
   },
   notificationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    marginVertical: 8,
-    borderRadius: 12,
+    padding: 12,
+    marginVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    ...(isWeb ? { transition: 'background-color 0.2s ease' } : {}),
   },
   notificationText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '500',
-    lineHeight: 24,
+    lineHeight: 22,
   },
   notificationDate: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginTop: 6,
+    fontSize: 12,
+    marginTop: 4,
   },
   redemptionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 10,
-    padding: 15,
-    borderRadius: 12,
+    padding: 10,
+    marginVertical: 4,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    ...(isWeb ? { transition: 'background-color 0.2s ease' } : {}),
+    minHeight: 72,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+    flexShrink: 0,
+    justifyContent: 'flex-end',
+  },
+  buttonContainer: {
+    borderRadius: 8,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(isWeb ? { transition: 'transform 0.2s ease' } : {}),
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    marginVertical: 12,
+    fontWeight: '500',
+    opacity: 0.7,
   },
 });

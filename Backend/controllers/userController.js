@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const Redemption = require('../models/Redemption');
 const Notification = require('../models/Notification');
-
+const {  sendApproveToAdmin} = require('../socket');
 // Get user by ID
 const getUser = async (req, res) => {
   try {
@@ -49,50 +49,64 @@ const updateUser = async (req, res) => {
   }
 };
 
-// Post a redemption request
 const postRedemptionData = async (req, res) => {
   try {
-    const { userid, redemption } = req.body;
+    const { userid, redemption, adminId } = req.body;
 
-    if (!userid || !redemption || !redemption.rewardId?._id || !redemption.redeemedAt || !redemption.status) {
-      console.log('Invalid redemption data');
+    if (
+      !userid ||
+      !redemption ||
+      !redemption.rewardId?._id ||
+      !redemption.redeemedAt ||
+      !redemption.status ||
+      !redemption.pointsRequired
+    ) {
       return res.status(400).json({ message: 'Invalid redemption data' });
     }
 
+    // Deduct points from user
+    const user = await User.findById(userid);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.points < redemption.pointsRequired) {
+      return res.status(400).json({ message: 'Insufficient points' });
+    }
+
+    user.points -= redemption.pointsRequired;
+    await user.save();
+
+    // Create redemption
     const data = await Redemption.create({
+      adminId,
       userId: userid,
       rewardId: redemption.rewardId._id,
       redeemedAt: redemption.redeemedAt,
+      pointsRequired: redemption.pointsRequired,
       status: redemption.status,
     });
 
-    if (!data) {
-      console.log('Error occurred in posting redemption request');
-      return res.status(400).json({ message: 'Error occurred in posting redemption request' });
-    }
-
-    // Populate rewardId to include name and image
-    const populatedData = await Redemption.findById(data._id).populate('rewardId', 'name image');
-
-    console.log('Successfully posted redemption data');
-    res.status(200).json({
-      redemption: {
-        _id: populatedData._id,
-        userId: populatedData.userId,
-        rewardId: {
-          _id: populatedData.rewardId._id,
-          name: populatedData.rewardId.name,
-          image: populatedData.rewardId.image,
-        },
-        redeemedAt: populatedData.redeemedAt,
-        status: populatedData.status,
+    const payload = {
+      _id: data._id,
+      adminId,
+      userId: data.userId,
+      rewardId: {
+        _id: redemption.rewardId._id,
+        name: redemption.rewardId.name,
+        image: redemption.rewardId.image,
       },
-    });
+      redeemedAt: data.redeemedAt,
+      status: data.status,
+    };
+
+    sendApproveToAdmin(adminId.toString(), { redemption: payload });
+
+    res.status(200).json({ redemption: payload });
   } catch (error) {
     console.error('Error occurred:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // Get redemption data for a user
 const getRedemptionsData = async (req, res) => {

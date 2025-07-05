@@ -14,14 +14,14 @@ import {
 import { TextInput, Button, Text, useTheme } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
-import ThemeToggle from '../components/ThemeToggle';
-import { ThemeContext } from '../ThemeContext';
+import ThemeToggle from '../../components/ThemeToggle';
+import { ThemeContext } from '../../ThemeContext';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
-import { API_BASE_URL } from '../../utils/api'; 
+import { API_BASE_URL } from '../../../utils/api'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RegisterScreen({ navigation }) {

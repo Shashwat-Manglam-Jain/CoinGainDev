@@ -147,19 +147,58 @@ const approveRedemption = async (req, res) => {
   }
 };
 
-//  Reject a redemption request
 const rejectRedemption = async (req, res) => {
   try {
-    const updated = await Redemption.findByIdAndUpdate(
-      req.params.id,
-      { status: 'rejected' },
-      { new: true }
-    );
-    res.json(updated);
+    // Get the current redemption record
+    const redemption = await Redemption.findById(req.params.id);
+
+    if (!redemption) {
+      return res.status(404).json({ error: 'Redemption not found' });
+    }
+
+    // If already rejected, skip processing
+    if (redemption.status === 'rejected') {
+      return res.status(400).json({ message: 'Redemption is already rejected' });
+    }
+
+    // Capture original status before update
+    const originalStatus = redemption.status;
+
+    // Update status to rejected and save
+    redemption.status = 'rejected';
+    await redemption.save();
+
+    // Only refund if the redemption wasn't previously rejected
+    if (originalStatus !== 'rejected') {
+      const user = await User.findById(redemption.userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const pointsToRefund = redemption.pointsRequired || 0;
+      user.points += pointsToRefund;
+      await user.save();
+
+      return res.status(200).json({
+        message: 'Redemption rejected and user refunded points',
+        redemption,
+        refundedPoints: pointsToRefund,
+      });
+    }
+
+    // If somehow passed checks but doesn't meet refund logic
+    return res.status(200).json({
+      message: 'Redemption rejected (no refund needed)',
+      redemption,
+    });
+
   } catch (err) {
+    console.error('Reject redemption error:', err);
     res.status(500).json({ error: 'Failed to reject redemption' });
   }
 };
+
+
 
 
 
@@ -179,8 +218,13 @@ const getRewards = async (req, res) => {
 const getRedemptions = async (req, res) => {
   try {
     const { adminId } = req.params;
-    const redemptions = await Redemption.find({ adminId }).sort({ createdAt: -1 });
-    res.json(redemptions);
+
+
+    const redemptions = await Redemption.find({ adminId })
+      .sort({ createdAt: -1 })
+      .populate('userId rewardId');
+
+    res.status(200).json(redemptions);
   } catch (error) {
     console.error('Error fetching redemptions:', error);
     res.status(500).json({ error: 'Failed to fetch redemptions' });
@@ -239,7 +283,6 @@ const makepayment = async (req, res) => {
     admindata.paymentHistory.push(paymentData._id);
     await admindata.save();
 
-    // ✅ Emit notification to the receiver in real-time
     sendNotificationToUser(receiver._id.toString(), {
       type: "payment",
       message: `You received ${updatePoint} points from ${admindata.name}`,
@@ -261,7 +304,7 @@ const makepayment = async (req, res) => {
   }
 };
 
-module.exports = { makepayment };
+
 
 
 

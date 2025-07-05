@@ -27,6 +27,7 @@ import Users from './Users';
 import Rewards from './Rewards';
 import Notification from './Notification';
 import History from './History';
+import {listenToApprovedRequests, registerUser } from '../../../utils/socket';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -107,7 +108,26 @@ export default function AdminDashboard({ navigation }) {
       return [];
     }
   };
+ useEffect(() => {
+  if (!adminUser?._id) return;
 
+  registerUser(adminUser._id);
+
+  const unsubscribe = listenToApprovedRequests((data) => {
+    // Optional toast or any UI update
+    Toast.show({
+      type: 'success',
+      text1: 'New Redemption Request',
+      text2: 'You have a new redemption request',
+    });
+
+    fetchRedemptions(adminUser._id); // refresh UI
+  });
+
+  return () => {
+    unsubscribe(); 
+  };
+}, [adminUser]);
   // Save notifications to AsyncStorage
   const saveNotificationsToStorage = async (updatedNotifications) => {
     try {
@@ -222,14 +242,17 @@ export default function AdminDashboard({ navigation }) {
       const response = await axios.get(`${API_BASE_URL}/fetchdata/redemptions/${adminId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setRedemptions(response.data || []);
+  
+       setRedemptions(response.data||[]);
+     console.log(response.data);
+     
     } catch (error) {
       Toast.show({
         type: 'error',
         text1: 'Error',
         text2: 'Failed to fetch redemptions: ' + error.message,
       });
-      setRedemptions([]);
+     
     }
   }, []);
 
@@ -617,6 +640,31 @@ export default function AdminDashboard({ navigation }) {
     }
   };
 
+  const handlereadNotification = async (notificationId) => {
+  try {
+    // Update the specific notification's "read" property
+    const updatedNotifications = notifications.map((n) =>
+      n._id === notificationId ? { ...n, read: true } : n
+    );
+
+    setNotifications(updatedNotifications);
+    await saveNotificationsToStorage(updatedNotifications);
+
+    Toast.show({
+      type: 'success',
+      text1: 'Notification Read',
+      text2: 'Notification marked as read successfully',
+    });
+  } catch (error) {
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Failed to mark notification as read: ' + error.message,
+    });
+  }
+};
+
+
   const handleDismissAllNotifications = async () => {
     setModalMessage('Clear all notifications?');
     setModalAction(() => async () => {
@@ -639,58 +687,117 @@ export default function AdminDashboard({ navigation }) {
     setModalVisible(true);
   };
 
-  const handleApproveRedemption = async (redemptionId) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      await axios.put(
-        `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/approve`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setRedemptions((prev) =>
-        prev.map((r) => (r._id === redemptionId ? { ...r, status: 'approved' } : r))
-      );
-      Toast.show({
-        type: 'success',
-        text1: 'Redemption Approved',
-        text2: 'Redemption request approved successfully',
-      });
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to approve redemption: ' + error.message,
-      });
-    }
-  };
+ const handleApproveRedemption = async (redemptionId) => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
 
-  const handleRejectRedemption = async (redemptionId) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      await axios.put(
-        `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/reject`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setRedemptions((prev) =>
-        prev.map((r) => (r._id === redemptionId ? { ...r, status: 'rejected' } : r))
-      );
-      Toast.show({
-        type: 'success',
-        text1: 'Redemption Rejected',
-        text2: 'Redemption request rejected successfully',
-      });
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to reject redemption: ' + error.message,
-      });
+    // API call to approve redemption
+    await axios.put(
+      `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/approve`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // Update local redemptions state
+    setRedemptions((prev) =>
+      prev.map((r) =>
+        r._id === redemptionId ? { ...r, status: 'approved' } : r
+      )
+    );
+
+    // Show success toast
+    Toast.show({
+      type: 'success',
+      text1: 'Redemption Approved',
+      text2: 'Redemption request approved successfully',
+    });
+
+    // Create a new notification based on redemption info
+    const redemption = redemptions.find((r) => r._id === redemptionId);
+    if (!redemption) return; // Extra safety
+
+    const { userId, rewardId } = redemption;
+
+    const newNotification = {
+      _id: `${Date.now()}-${redemptionId}`,
+      message: `${userId?.name || 'User'} (code: ${userId?.userUniqueCode || 'N/A'}) redemption for '${rewardId?.name || 'Reward'}' (${rewardId?.pointsRequired || 0} points) was ✅ Approved successfully.`,
+      createdAt: new Date().toISOString(),
+      read: false,
+    };
+
+    // Update notifications
+    const updatedNotifications = [...notifications, newNotification];
+    setNotifications(updatedNotifications);
+    await saveNotificationsToStorage(updatedNotifications);
+  } catch (error) {
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Failed to approve redemption: ' + error.message,
+    });
+  }
+};
+
+const handleRejectRedemption = async (redemptionId) => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+
+    // Find the redemption first BEFORE updating state
+    const redemption = redemptions.find((r) => r._id === redemptionId);
+    if (!redemption) {
+      throw new Error('Redemption not found.');
     }
-  };
+
+    const { userId, rewardId } = redemption;
+
+    // API call to reject the redemption
+    await axios.put(
+      `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/reject`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // Update local redemptions state
+    setRedemptions((prev) =>
+      prev.map((r) =>
+        r._id === redemptionId ? { ...r, status: 'rejected' } : r
+      )
+    );
+
+    // Create a notification
+    const newNotification = {
+      _id: `${Date.now()}-${redemptionId}`,
+      message: `${userId?.name || 'User'} (code: ${userId?.userUniqueCode || 'N/A'}) redemption for '${rewardId?.name || 'Reward'}' (${rewardId?.pointsRequired || 0} points) was ❌ Rejected successfully.`,
+      createdAt: new Date().toISOString(),
+      read: false,
+    };
+
+    // Update notifications
+    const updatedNotifications = [...notifications, newNotification];
+    setNotifications(updatedNotifications);
+    await saveNotificationsToStorage(updatedNotifications);
+
+    // Show toast
+    Toast.show({
+      type: 'success',
+      text1: 'Redemption Rejected',
+      text2: 'Redemption request rejected successfully',
+    });
+  } catch (error) {
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Failed to reject redemption: ' + error.message,
+    });
+  }
+};
+
 
   // Calculate unread notifications for badge
-  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
+const unreadNotificationsCount = [
+  ...notifications.filter((n) => !n.read),
+  ...redemptions.filter((r) => r.status === 'pending'),
+].length;
 
   const renderTabContent = () => {
     switch (currentTab) {
@@ -767,6 +874,7 @@ export default function AdminDashboard({ navigation }) {
             saveNotificationsToStorage={saveNotificationsToStorage}
             redemptions={redemptions}
             handleClearNotification={handleClearNotification}
+            handlereadNotification={handlereadNotification}
             handleDismissAllNotifications={handleDismissAllNotifications}
             handleApproveRedemption={handleApproveRedemption}
             handleRejectRedemption={handleRejectRedemption}

@@ -19,10 +19,10 @@ import { Picker } from "@react-native-picker/picker";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
-import ThemeToggle from "../components/ThemeToggle";
-import { ThemeContext } from "../ThemeContext";
+import ThemeToggle from "../../components/ThemeToggle";
+import { ThemeContext } from "../../ThemeContext";
 import { useFocusEffect } from "@react-navigation/native";
-import { API_BASE_URL } from '../../utils/api'; 
+import { API_BASE_URL } from '../../../utils/api'; 
 
 
 
@@ -64,8 +64,6 @@ const handleLogin = async () => {
     });
 
     const { token, user } = response.data;
-
-  
 
     await AsyncStorage.setItem("userToken", token);
     await AsyncStorage.setItem("userInfo", JSON.stringify(user));

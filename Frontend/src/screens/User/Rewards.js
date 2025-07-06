@@ -4,6 +4,7 @@ import { View, Text, FlatList, Image, TouchableOpacity } from 'react-native';
 import { useTheme, Card, TextInput, Button, Badge } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
 import styles, { ButtonText } from './styles';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const Rewards = ({ user, rewards, handleRedeem }) => {
   const { colors } = useTheme();
@@ -40,7 +41,7 @@ const Rewards = ({ user, rewards, handleRedeem }) => {
               activeOpacity={0.8}
             >
               <View style={[styles.rewardCard, { backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }]}>
-                <Card.Content>
+                <Card.Content style={{paddingVertical:10}}>
                   {item.tag && (
                     <Badge
                       style={[
@@ -102,8 +103,8 @@ const Rewards = ({ user, rewards, handleRedeem }) => {
                       buttonColor={colors.primary}
                       textColor="#FFFFFF"
                       contentStyle={{ paddingVertical: 6 }}
-                    >
-                      <ButtonText>Redeem Now</ButtonText>
+                    >  <MaterialCommunityIcons name="gift" size={28} color={'white'} style={styles.statIcon} />
+                      <ButtonText> Redeem Now</ButtonText>
                     </Button>
                   )}
                 </Card.Content>

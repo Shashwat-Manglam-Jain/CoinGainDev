@@ -37,8 +37,23 @@ const sendApproveToAdmin = (adminId, data) => {
   }
 };
 
+const approveRedemptionByAdmin = (adminId, data) => {
+  if (io) {
+    io.to(adminId).emit("admin-approved-request", data);
+  }
+}; 
+
+const disapproveRedemptionByAdmin = (adminId, data) => {
+  if (io) {
+    io.to(adminId).emit("admin-reject-request", data);
+  }
+};
+
 module.exports = {
   setupSocket,
   sendNotificationToUser,
   sendApproveToAdmin,
+  approveRedemptionByAdmin,
+  disapproveRedemptionByAdmin 
+
 };

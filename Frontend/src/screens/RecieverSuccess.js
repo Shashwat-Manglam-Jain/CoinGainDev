@@ -12,7 +12,7 @@ export default function ReceiverSuccess({ route, navigation }) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigation.navigate('UserDashboard');
+      navigation.replace('UserDashboard');
     }, 4000);
 
     return () => clearTimeout(timer);

@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   BackHandler,
+  RefreshControl,
 } from 'react-native';
 import { Button, Card, TextInput, useTheme, Avatar } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -328,7 +329,7 @@ export default function AdminDashboard({ navigation }) {
       setReceiverCode('');
       await fetchInvoice(userInfo._id);
 
-      navigation.navigate('SuccessScreen', {
+      navigation.replace('SuccessScreen', {
         points,
         receiverUniquecode,
         amount,
@@ -791,6 +792,43 @@ const handleRejectRedemption = async (redemptionId) => {
     });
   }
 };
+const [refreshing, setRefreshing] = useState(false);
+
+const onRefresh = useCallback(() => {
+  setRefreshing(true); // Start the pull-to-refresh spinner
+
+  const loadAdminUser = async () => {
+    try {
+      setLoading(true);
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      const parsedUser = userInfo ? JSON.parse(userInfo) : defaultAdminUser;
+
+      setAdminUser(parsedUser);
+
+      const storedNotifications = await loadNotificationsFromStorage();
+      setNotifications(storedNotifications);
+
+      await Promise.all([
+        fetchUsers(parsedUser._id),
+        fetchRewards(parsedUser._id),
+        fetchRedemptions(parsedUser._id),
+        fetchInvoice(parsedUser._id),
+      ]);
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load user info: ' + error.message,
+      });
+      setAdminUser(defaultAdminUser);
+    } finally {
+      setLoading(false);
+      setRefreshing(false); // ✅ Stop the spinner
+    }
+  };
+
+  loadAdminUser();
+}, []);
 
 
   // Calculate unread notifications for badge
@@ -903,11 +941,11 @@ const unreadNotificationsCount = [
     <View
       style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f4f8' }]}
     >
-      {loading && (
+      {/* {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      )}
+      )} */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -962,6 +1000,15 @@ const unreadNotificationsCount = [
         showsVerticalScrollIndicator={true}
         bounces={true}
         style={styles.scrollContent}
+        
+                  refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#2196F3"
+                  colors={['#2196F3']}
+                />
+              }
       />
       <View
         style={[

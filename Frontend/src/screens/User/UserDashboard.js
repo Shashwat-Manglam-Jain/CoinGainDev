@@ -1,8 +1,8 @@
 import React, { useState, useContext, useEffect, useCallback } from 'react';
-import { StyleSheet, FlatList, ActivityIndicator, Modal, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, FlatList, ActivityIndicator, Modal, View, Text, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, Button, Badge } from 'react-native-paper';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { ThemeContext } from '../../ThemeContext';
 import Profile from './Profile';
@@ -13,7 +13,7 @@ import Redemption from './Redemption';
 import styles, { ButtonText } from './styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { listenToNotifications, registerUser } from '../../../utils/socket';
+import { listenToApprovedRequestsByAdmin, listenToNotifications, listenToRejectRequestsByAdmin, registerUser } from '../../../utils/socket';
 import { API_BASE_URL } from '../../../utils/api';
 import axios from 'axios';
 
@@ -24,7 +24,7 @@ const UserDashboard = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [modalAction, setModalAction] = useState(null);
- const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null);
   const [admin, setAdmin] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [redemptions, setRedemptions] = useState([]);
@@ -32,7 +32,44 @@ const UserDashboard = () => {
   const [notification, setNotification] = useState(null);
   const [showLottie, setShowLottie] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
   const navigation = useNavigation();
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    registerUser(user._id);
+
+    const unsubscribe = listenToApprovedRequestsByAdmin((data) => {
+      Toast.show({
+        type: 'success',
+        text1: 'Redemption Approved',
+        text2: 'Your redemption request has been approved.',
+      });
+
+      fetchRedemptions(user._id);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    registerUser(user._id);
+
+    const unsubscribe = listenToRejectRequestsByAdmin((data) => {
+      Toast.show({
+        type: 'error',
+        text1: 'Redemption Rejected',
+        text2: 'Your redemption request was rejected.',
+      });
+
+      fetchRedemptions(user._id);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -42,7 +79,7 @@ const UserDashboard = () => {
     const unsubscribe = listenToNotifications((data) => {
       setNotification(data.message);
       setShowLottie(true);
-      navigation.navigate('ReceiverSuccess', {
+      navigation.replace('ReceiverSuccess', {
         points: data.points,
         amount: data.amount,
         senderName: data.senderName,
@@ -71,7 +108,7 @@ const UserDashboard = () => {
         name: userData.name || null,
         mobile: userData.mobile || null,
         userUniqueCode: userData.userUniqueCode || null,
-        role:userData.role|| null,
+        role: userData.role || null,
         location: userData.location || null,
         points: userData.points || 0,
         createdAt: userData.createdAt || null,
@@ -88,7 +125,7 @@ const UserDashboard = () => {
         _id: fetchedUser._id || null,
         name: fetchedUser.name || null,
         mobile: fetchedUser.mobile || null,
-        role:fetchedUser.role|| null,
+        role: fetchedUser.role || null,
         userUniqueCode: fetchedUser.userUniqueCode || null,
         location: fetchedUser.location || null,
         points: fetchedUser.points || 0,
@@ -187,10 +224,17 @@ const UserDashboard = () => {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error('No user token found');
+
       const response = await axios.get(`${API_BASE_URL}/Userfetch/notifications/${userId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
-      const fetchedNotifications = response.data || [];
+
+      let fetchedNotifications = response.data || [];
+
+      fetchedNotifications = fetchedNotifications.sort((a, b) =>
+        new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
       setNotifications(fetchedNotifications);
       await AsyncStorage.setItem('notifications', JSON.stringify(fetchedNotifications));
     } catch (error) {
@@ -211,21 +255,32 @@ const UserDashboard = () => {
 
   const fetchRedemptions = useCallback(async (userId, retries = 2) => {
     if (!userId) return;
+
     try {
       setLoading(true);
+
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error('No user token found');
+
       const response = await axios.get(`${API_BASE_URL}/Userfetch/redeem/${userId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
+
       const fetchedRedemptions = response.data || [];
-      setRedemptions(fetchedRedemptions);
-      await AsyncStorage.setItem('redemptions', JSON.stringify(fetchedRedemptions));
+
+      const sortedRedemptions = fetchedRedemptions.sort(
+        (a, b) => new Date(b.redeemedAt) - new Date(a.redeemedAt)
+      );
+
+      setRedemptions(sortedRedemptions);
+
+      await AsyncStorage.setItem('redemptions', JSON.stringify(sortedRedemptions));
     } catch (error) {
       if (retries > 0) {
         console.warn(`Retrying fetchRedemptions (${retries} retries left)...`);
         return fetchRedemptions(userId, retries - 1);
       }
+
       console.error('Fetch redemptions error:', error.message);
       Toast.show({
         type: 'error',
@@ -269,15 +324,13 @@ const UserDashboard = () => {
     try {
       setLoading(true);
       const userToken = await AsyncStorage.getItem('userToken');
-      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
       if (!userToken) throw new Error('No user token found');
-      if (!userData._id) throw new Error('No user ID found');
-      const response = await axios.post(
-        `${API_BASE_URL}/Userfetch/notifications`,
-        { userid: userData._id, message: notification.message },
-        { headers: { Authorization: `Bearer ${userToken}` } }
-      );
-      const newNotification = response.data || notification;
+
+      const newNotification = notification;
+      if (!newNotification || typeof newNotification !== 'object') {
+        throw new Error('Invalid notification object');
+      }
+
       setNotifications((prev) => {
         const updatedNotifications = [...prev, newNotification];
         AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).catch((error) =>
@@ -285,6 +338,7 @@ const UserDashboard = () => {
         );
         return updatedNotifications;
       });
+
       return newNotification;
     } catch (error) {
       if (retries > 0) {
@@ -305,126 +359,174 @@ const UserDashboard = () => {
 
   const deleteNotification = useCallback(async (notificationId, retries = 2) => {
     try {
+      if (!notificationId) return;
       setLoading(true);
+
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error('No user token found');
+
       await axios.delete(`${API_BASE_URL}/Userfetch/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
+
       setNotifications((prev) => {
         const updatedNotifications = prev.filter((n) => n._id !== notificationId);
-        AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).catch((error) =>
-          console.error('AsyncStorage save notifications error:', error)
+
+        AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).catch((err) =>
+          console.error('AsyncStorage save notifications error:', err)
         );
+
         return updatedNotifications;
       });
+
     } catch (error) {
       if (retries > 0) {
         console.warn(`Retrying deleteNotification (${retries} retries left)...`);
         return deleteNotification(notificationId, retries - 1);
       }
+
       console.error('Delete notification error:', error.message);
       Toast.show({
         type: 'error',
         text1: 'Error',
         text2: 'Failed to delete notification.',
       });
+
     } finally {
       setLoading(false);
     }
   }, []);
 
-const saveRedemptions = useCallback(
-  async (rewardId, retries = 2) => {
+  const readNotification = useCallback(async (notificationId, retries = 2) => {
     try {
+      if (!notificationId) return;
       setLoading(true);
 
       const userToken = await AsyncStorage.getItem('userToken');
       if (!userToken) throw new Error('No user token found');
 
-      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
-      if (!userData._id) throw new Error('No user ID found');
-
-      const reward = rewards.find((r) => r._id === rewardId);
-      if (!reward) throw new Error('Reward not found');
-
-      if (userData.points < reward.pointsRequired) {
-        throw new Error('Insufficient points');
-      }
-
-      // Build redemption object
-      const newRedemption = {
-        _id: `${Date.now()}`,
-        rewardId: {
-          _id: reward._id,
-          name: reward.name,
-          image: reward.image,
-        },
-        redeemedAt: new Date().toISOString(),
-        status: 'pending',
-        pointsRequired: reward.pointsRequired, // ✅ properly included
-      };
-
-      // Send to backend
-      const response = await axios.post(
-        `${API_BASE_URL}/Userfetch/redeem`,
-        {
-          userid: userData._id,
-          redemption: newRedemption,
-          adminId: userData.adminId,
-        },
-        {
-          headers: { Authorization: `Bearer ${userToken}` },
-        }
+      await axios.put(
+        `${API_BASE_URL}/Userfetch/notifications/mark-read`,
+        { notificationId },
+        { headers: { Authorization: `Bearer ${userToken}` } }
       );
 
-      const savedRedemption = response.data.redemption || newRedemption;
+      setNotifications((prev) => {
+        const updatedNotifications = prev.map((n) =>
+          n._id === notificationId ? { ...n, read: true } : n
+        );
 
-      // Update user points locally
-      const updatedUser = {
-        ...userData,
-        points: userData.points - reward.pointsRequired,
-      };
+        AsyncStorage.setItem('notifications', JSON.stringify(updatedNotifications)).catch((error) =>
+          console.error('AsyncStorage save notifications error:', error)
+        );
 
-      const newNotification = {
-        _id: `${Date.now()}`,
-        message: `Redemption request for ${reward.name} submitted.`,
-        createdAt: new Date().toISOString(),
-        read: false,
-        type: 'redemption_submitted',
-        rewardId: reward._id,
-      };
-
-      await Promise.all([
-        saveUser(updatedUser),
-        saveNotification(newNotification),
-        (async () => {
-          const newRedemptions = [...(await AsyncStorage.getItem('redemptions').then(JSON.parse).catch(() => [])), savedRedemption];
-          await AsyncStorage.setItem('redemptions', JSON.stringify(newRedemptions));
-          setRedemptions(newRedemptions);
-        })(),
-      ]);
-
-      return savedRedemption;
+        return updatedNotifications;
+      });
     } catch (error) {
       if (retries > 0) {
-        console.warn(`Retrying saveRedemptions (${retries} retries left)...`);
-        return saveRedemptions(rewardId, retries - 1);
+        console.warn(`Retrying readNotification (${retries} retries left)...`);
+        return readNotification(notificationId, retries - 1);
       }
 
-      console.error('Save redemptions error:', error.message);
+      console.error('Read notification error:', error.message);
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'Failed to save redemption.',
+        text2: 'Failed to mark notification as read.',
       });
-      throw error;
     } finally {
       setLoading(false);
     }
-  },
-  [rewards, saveUser, saveNotification]
-);
+  }, []);
+
+  const saveRedemptions = useCallback(
+    async (rewardId, retries = 2) => {
+      try {
+        setLoading(true);
+
+        const userToken = await AsyncStorage.getItem('userToken');
+        if (!userToken) throw new Error('No user token found');
+
+        const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+        if (!userData._id) throw new Error('No user ID found');
+
+        const reward = rewards.find((r) => r._id === rewardId);
+        if (!reward) throw new Error('Reward not found');
+
+        if (userData.points < reward.pointsRequired) {
+          throw new Error('Insufficient points');
+        }
+
+        const newRedemption = {
+          _id: `${Date.now()}`,
+          rewardId: {
+            _id: reward._id,
+            name: reward.name,
+            image: reward.image,
+          },
+          redeemedAt: new Date().toISOString(),
+          status: 'pending',
+          pointsRequired: reward.pointsRequired,
+        };
+
+        const response = await axios.post(
+          `${API_BASE_URL}/Userfetch/redeem`,
+          {
+            userid: userData._id,
+            redemption: newRedemption,
+            adminId: userData.adminId,
+          },
+          {
+            headers: { Authorization: `Bearer ${userToken}` },
+          }
+        );
+
+        const savedRedemption = response.data.redemption || newRedemption;
+
+        const updatedUser = {
+          ...userData,
+          points: userData.points - reward.pointsRequired,
+        };
+
+        const newNotification = {
+          _id: `${Date.now()}`,
+          message: `Redemption request for ${reward.name} submitted.`,
+          createdAt: new Date().toISOString(),
+          read: false,
+          type: 'redemption_submitted',
+          rewardId: reward._id,
+        };
+
+        await Promise.all([
+          saveUser(updatedUser),
+          saveNotification(newNotification),
+          (async () => {
+            const newRedemptions = [...(await AsyncStorage.getItem('redemptions').then(JSON.parse).catch(() => [])), savedRedemption];
+            await AsyncStorage.setItem('redemptions', JSON.stringify(newRedemptions));
+            setRedemptions(newRedemptions);
+          })(),
+        ]);
+
+        return savedRedemption;
+      } catch (error) {
+        if (retries > 0) {
+          console.warn(`Retrying saveRedemptions (${retries} retries left)...`);
+          return saveRedemptions(rewardId, retries - 1);
+        }
+
+        console.error('Save redemptions error:', error.message);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: error.message || 'Failed to save redemption.',
+        });
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [rewards, saveUser, saveNotification]
+  );
 
   const deleteRedemption = useCallback(async (redemptionId, rewardName, retries = 2) => {
     try {
@@ -507,10 +609,40 @@ const saveRedemptions = useCallback(
     }
   }, [navigation]);
 
+  const fetchExpiryOfToken = useCallback(async (adminId, userID) => {
+    try {
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+
+      const response = await axios.get(
+        `${API_BASE_URL}/Userfetch/fetchexpiryofToken/${adminId}/${userID}`,
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+
+      const sorted = (response.data || []).sort(
+        (a, b) => new Date(a.expiryMonth) - new Date(b.expiryMonth)
+      );
+
+      setHistory(sorted);
+    } catch (error) {
+      console.error('Fetch expiry error:', error.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to fetch token expiry data.',
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       try {
         const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+
         if (!userData._id) {
           Toast.show({
             type: 'error',
@@ -520,10 +652,18 @@ const saveRedemptions = useCallback(
           navigation.replace('Login');
           return;
         }
+
         const fetchedUser = await fetchUser(userData._id);
+        const adminId = fetchedUser?.adminId;
+
+        if (!adminId) {
+          throw new Error('Admin ID not found for user');
+        }
+
         await Promise.all([
-          fetchAdmin(fetchedUser.adminId),
-          fetchReward(fetchedUser.adminId),
+          fetchExpiryOfToken(adminId, userData._id),
+          fetchAdmin(adminId),
+          fetchReward(adminId),
           fetchNotifications(userData._id),
           fetchRedemptions(userData._id),
         ]);
@@ -536,8 +676,17 @@ const saveRedemptions = useCallback(
         });
       }
     };
+
     loadData();
-  }, [fetchUser, fetchAdmin, fetchReward, fetchNotifications, fetchRedemptions, navigation]);
+  }, [
+    fetchUser,
+    fetchAdmin,
+    fetchReward,
+    fetchNotifications,
+    fetchRedemptions,
+    navigation,
+    fetchExpiryOfToken
+  ]);
 
   const handleTabPress = (tab) => {
     setCurrentTab(tab);
@@ -560,6 +709,7 @@ const saveRedemptions = useCallback(
             setModalVisible={setModalVisible}
             setModalMessage={setModalMessage}
             setModalAction={setModalAction}
+            setUser={setUser}
           />
         );
       case 'rewards':
@@ -593,11 +743,22 @@ const saveRedemptions = useCallback(
           />
         );
       case 'history':
-        return <History />;
+        return (
+          <History
+            users={[user, admin].filter(Boolean)}
+            rewards={rewards}
+            redemptions={history}
+            colors={colors}
+            isDarkMode={isDarkMode}
+            navigation={navigation}
+            setCurrentTab={setCurrentTab}
+          />
+        );
       case 'notifications':
         return (
           <Notifications
             notifications={notifications}
+            readNotification={readNotification}
             handleMarkAllRead={handleMarkAllRead}
             handleClearNotification={(notificationId) => {
               setModalMessage('Are you sure you want to dismiss this notification?');
@@ -660,15 +821,64 @@ const saveRedemptions = useCallback(
     }
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+const onRefresh = useCallback(() => {
+  setRefreshing(true);
+
+  const loadData = async () => {
+    try {
+      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+
+      if (!userData._id) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'No user data found. Please log in.',
+        });
+        navigation.replace('Login');
+        return;
+      }
+
+      const fetchedUser = await fetchUser(userData._id);
+      const adminId = fetchedUser?.adminId;
+
+      if (!adminId) {
+        throw new Error('Admin ID not found for user');
+      }
+
+      await Promise.all([
+        fetchExpiryOfToken(adminId, userData._id),
+        fetchAdmin(adminId),
+        fetchNotifications(userData._id),
+        fetchRedemptions(userData._id),
+      ]);
+
+      console.log('🔄 Data refreshed successfully!');
+    } catch (error) {
+      console.error('Initial data load error:', error.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load initial data.',
+      });
+    } finally {
+      setRefreshing(false); 
+    }
+  };
+
+  loadData(); 
+
+}, []);
+
   const unreadNotifications = notifications.filter((n) => !n.read).length;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#0A0A0A' : '#F0F4F8' }]}>
-      {loading && (
+      {/* {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      )}
+      )} */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -708,6 +918,14 @@ const saveRedemptions = useCallback(
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+          refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#2196F3"
+          colors={['#2196F3']}
+        />
+      }
       />
       <View
         style={[

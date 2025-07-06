@@ -1,33 +1,41 @@
 
 import React, { useContext } from 'react';
-import { View, Text, FlatList } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity } from 'react-native';
 import { useTheme, Button, Avatar } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
 import styles, { ButtonText } from './styles';
 
-const Notifications = ({ notifications, handleMarkAllRead, handleClearNotification }) => {
+const Notifications = ({ notifications, handleMarkAllRead, handleClearNotification ,readNotification }) => {
   const { colors } = useTheme();
   const { isDarkMode } = useContext(ThemeContext);
 
   return (
     <View style={styles.tabContent}>
       <View style={styles.rewardHistoryHeader}>
-        <Text style={[styles.title, { color: colors.text,marginRight:10 }]}>Notifications</Text>
+        <Text style={[styles.title, { color: colors.text}]}>Notifications</Text>
         {notifications.length > 0 && (
-          <Button
-            mode="contained"
-            onPress={handleMarkAllRead}
-            buttonColor={colors.primary}
-            textColor="#FFFFFF"
-          >
-            <ButtonText>Mark All Read</ButtonText>
-          </Button>
+      <TouchableOpacity
+  onPress={handleMarkAllRead}
+  style={{
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+  }}
+>
+  <Text style={{ color:colors.primary, fontSize: 16, fontWeight: 'bold' }}>
+    Mark All Read
+  </Text>
+</TouchableOpacity>
+
+      
         )}
       </View>
       <FlatList
         data={notifications}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => (
+         <TouchableOpacity   onPress={()=>readNotification(item._id)}   onLongPress={() => handleClearNotification(item._id)}>
           <View
             style={[
               styles.notificationItem,
@@ -42,6 +50,19 @@ const Notifications = ({ notifications, handleMarkAllRead, handleClearNotificati
               },
             ]}
           >
+             {!item.read && (
+              <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: 'red',
+                marginRight: 12,
+              }}
+               
+            />
+            
+            )}
             <Avatar.Icon 
               size={36}
               icon={item.read ? 'bell-outline' : 'bell'}
@@ -58,15 +79,8 @@ const Notifications = ({ notifications, handleMarkAllRead, handleClearNotificati
                 {new Date(item.createdAt).toLocaleString()}
               </Text>
             </View>
-            <Button
-              mode="text"
-              onPress={() => handleClearNotification(item._id)}
-              textColor={colors.error}
-              style={styles.clearButton}
-            >
-              <ButtonText>Dismiss</ButtonText>
-            </Button>
-          </View>
+           
+          </View></TouchableOpacity>
         )}
         ListEmptyComponent={() => (
           <Text style={[styles.emptyText, { color: colors.text }]}>No notifications.</Text>

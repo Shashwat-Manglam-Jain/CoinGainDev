@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Redemption = require('../models/Redemption');
 const Notification = require('../models/Notification');
 const {  sendApproveToAdmin} = require('../socket');
+const PaymentHistory=require('../models/paymentHistory');
 // Get user by ID
 const getUser = async (req, res) => {
   try {
@@ -151,35 +152,35 @@ const getNotifications = async (req, res) => {
   }
 };
 
-// Post a notification
-const postNotification = async (req, res) => {
-  try {
-    const { userid, message } = req.body;
+// // Post a notification
+// const postNotification = async (req, res) => {
+//   try {
+//     const { userid, message } = req.body;
 
-    if (!userid || !message) {
-      console.log('Invalid notification data');
-      return res.status(400).json({ message: 'Invalid notification data' });
-    }
+//     if (!userid || !message) {
+//       console.log('Invalid notification data');
+//       return res.status(400).json({ message: 'Invalid notification data' });
+//     }
 
-    const data = await Notification.create({
-      message,
-      userId: userid,
-      createdAt: new Date().toISOString(),
-      read: false,
-    });
+//     const data = await Notification.create({
+//       message,
+//       userId: userid,
+//       createdAt: new Date().toISOString(),
+//       read: false,
+//     });
 
-    if (!data) {
-      console.log('Error occurred in posting notification');
-      return res.status(400).json({ message: 'Error occurred in posting notification' });
-    }
+//     if (!data) {
+//       console.log('Error occurred in posting notification');
+//       return res.status(400).json({ message: 'Error occurred in posting notification' });
+//     }
 
-    console.log('Successfully posted notification');
-    res.status(200).json(data); // Return the created notification
-  } catch (error) {
-    console.error('Error occurred:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+//     console.log('Successfully posted notification');
+//     res.status(200).json(data); // Return the created notification
+//   } catch (error) {
+//     console.error('Error occurred:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
 
 // Fetch admin details
 const fetchAdminDetails = async (req, res) => {
@@ -258,6 +259,104 @@ const deleteRedemption = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+const markNotificationRead = async (req, res) => {
+  try {
+    const { notificationId } = req.body;
+
+    if (!notificationId) {
+      return res.status(400).json({ message: 'Missing notification ID' });
+    }
+
+    const updatedNotification = await Notification.findByIdAndUpdate(
+      notificationId,
+      { $set: { read: true } }, 
+      { new: true } // returns the updated document
+    );
+
+    if (!updatedNotification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    res.status(200).json({
+      message: 'Notification marked as read',
+      notification: updatedNotification,
+    });
+
+  } catch (error) {
+    console.error('Error marking notification as read:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const fetchexpiryofToken = async (req, res) => {
+  try {
+    const { adminId, userID } = req.params;
+
+    if (!adminId) {
+      console.log("adminId doesn't exist");
+      return res.status(400).json({ message: "adminId doesn't exist" });
+    }
+
+    if (!userID) {
+      console.log("userID doesn't exist");
+      return res.status(400).json({ message: "userID doesn't exist" });
+    }
+
+    const data = await PaymentHistory.find({
+      senderId: adminId,
+      receiverId: userID,
+    })
+      .sort({ expiryMonth: 1 }) // Soonest expiry first
+      .populate('senderId')
+      .populate('receiverId'); // Correct populate syntax
+
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("Error fetching token expiry:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+const editUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, mobile, location } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ message: 'Missing user ID' });
+    }
+
+    if (!name && !mobile && !location) {
+      return res.status(400).json({ message: 'No update fields provided' });
+    }
+
+    const updatedFields = {};
+    if (name) updatedFields.name = name;
+    if (mobile) updatedFields.mobile = mobile;
+    if (location) updatedFields.location = location;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      updatedFields,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      message: 'User updated successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error('Error updating user:', error.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 
 module.exports = {
   getUser,
@@ -265,9 +364,12 @@ module.exports = {
   postRedemptionData,
   getRedemptionsData,
   getNotifications,
-  postNotification,
+  //postNotification,
   deleteNotification,
   markAllNotificationsRead,
   deleteRedemption,
   fetchAdminDetails,
+  markNotificationRead ,
+  fetchexpiryofToken,
+  editUser
 };

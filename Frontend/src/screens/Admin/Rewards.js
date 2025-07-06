@@ -6,7 +6,7 @@ import { Dimensions } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
-const CARD_WIDTH = SCREEN_WIDTH - 100;
+const CARD_WIDTH = SCREEN_WIDTH - 140;
 const CARD_HEIGHT = 250;
 
 const ButtonText = ({ children, style }) => (
@@ -100,7 +100,7 @@ const Rewards = ({
   );
 
   return (
-    <View style={[styles.tabContent, { backgroundColor: isDarkMode ? '#121212' : '#f0f4f8' }]}>
+    <View style={[styles.tabContent, { backgroundColor: isDarkMode ? '#121212' : '#f0f4f8' ,padding:10,}]}>
       <Text style={[styles.title, { color: colors.text }]}>Rewards</Text>
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff' }]}>
         <Card.Title
@@ -292,6 +292,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   rewardCard: {
+    
     margin: 10,
     borderRadius: 12,
     overflow: 'hidden',

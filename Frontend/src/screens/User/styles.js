@@ -2,7 +2,7 @@
 import { StyleSheet, Dimensions, Platform, Text } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH - 50;
+const CARD_WIDTH = SCREEN_WIDTH - 60;
 const CARD_HEIGHT = 280;
 
 export const ButtonText = ({ children, style }) => (
@@ -32,9 +32,9 @@ export default StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 6,
     position: 'absolute',
-    top: 0,
+    top: 10,
     left: 0,
     right: 0,
     zIndex: 10,
@@ -43,7 +43,7 @@ export default StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    width: '100%',
+    width: '110%',
   },
   headerButtons: {
     flexDirection: 'row',
@@ -107,20 +107,22 @@ export default StyleSheet.create({
   },
   tabContent: {
     paddingBottom: 20,
+    paddingHorizontal:10
   },
   card: {
     marginVertical: 12,
     borderRadius: 16,
     elevation: 8,
-    padding: 16,
+    paddingBottom: 26,
+  
   },
   cardTitle: {
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 8,
+   
   },
   cardText: {
-    fontSize: 18,
+    fontSize: 19,
     marginVertical: 6,
     fontWeight: '500',
     lineHeight: 24,
@@ -190,6 +192,7 @@ export default StyleSheet.create({
     borderRadius: 16,
     elevation: 8,
     padding: 16,
+
   },
   rewardImage: {
     width: '100%',
@@ -291,13 +294,14 @@ export default StyleSheet.create({
     marginVertical: 10,
     borderRadius: 12,
     elevation: 6,
-    padding: 16,
+    padding: 6,
   },
   historyImage: {
     width: 80,
     height: 80,
     borderRadius: 10,
-    marginBottom: 10,
+    marginBottom: 4,
+    marginTop:3
   },
   historyName: {
     fontSize: 18,
@@ -305,8 +309,8 @@ export default StyleSheet.create({
   },
   historyDetails: {
     fontSize: 14,
-    marginVertical: 6,
     opacity: 0.8,
+     marginBottom: 4,
   },
   emptyText: {
     textAlign: 'center',
@@ -347,16 +351,14 @@ export default StyleSheet.create({
     marginTop: 12,
     gap: 12,
   },
-  statContainer: {
-    marginVertical: 12,
-    padding: 12,
+  statContainer: { padding: 8,
     borderRadius: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    margin: 8,
     padding: 10,
     borderRadius: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',

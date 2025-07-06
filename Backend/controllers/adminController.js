@@ -3,7 +3,7 @@ const Reward = require('../models/Reward');
 const Notification = require('../models/Notification');
 const Redemption = require('../models/Redemption');
 const PaymentHistory=require('../models/paymentHistory');
-const { sendNotificationToUser } = require('../socket');
+const { sendNotificationToUser, approveRedemptionByAdmin, disapproveRedemptionByAdmin } = require('../socket');
 //  Get all admins
 const getAllAdmins = async (req, res) => {
   try {
@@ -133,42 +133,49 @@ const deleteReward = async (req, res) => {
 
 
 
-//  Approve a redemption request
 const approveRedemption = async (req, res) => {
   try {
-    const updated = await Redemption.findByIdAndUpdate(
-      req.params.id,
-      { status: 'approved' },
-      { new: true }
-    );
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to approve redemption' });
-  }
-};
-
-const rejectRedemption = async (req, res) => {
-  try {
-    // Get the current redemption record
     const redemption = await Redemption.findById(req.params.id);
 
     if (!redemption) {
       return res.status(404).json({ error: 'Redemption not found' });
     }
 
-    // If already rejected, skip processing
+    if (redemption.status === 'approved') {
+      return res.status(400).json({ message: 'Redemption is already approved' });
+    }
+
+    redemption.status = 'approved';
+    await redemption.save();
+
+    approveRedemptionByAdmin(redemption.userId.toString(), { redemption });
+
+    res.status(200).json({ message: 'Redemption approved successfully', redemption });
+  } catch (err) {
+    console.error('Approve redemption error:', err);
+    res.status(500).json({ error: 'Failed to approve redemption' });
+  }
+};
+
+// Reject a redemption request
+const rejectRedemption = async (req, res) => {
+  try {
+    const redemption = await Redemption.findById(req.params.id);
+
+    if (!redemption) {
+      return res.status(404).json({ error: 'Redemption not found' });
+    }
+
     if (redemption.status === 'rejected') {
       return res.status(400).json({ message: 'Redemption is already rejected' });
     }
 
-    // Capture original status before update
     const originalStatus = redemption.status;
-
-    // Update status to rejected and save
     redemption.status = 'rejected';
     await redemption.save();
 
-    // Only refund if the redemption wasn't previously rejected
+    disapproveRedemptionByAdmin(redemption.userId.toString(), { redemption });
+
     if (originalStatus !== 'rejected') {
       const user = await User.findById(redemption.userId);
       if (!user) {
@@ -186,18 +193,12 @@ const rejectRedemption = async (req, res) => {
       });
     }
 
-    // If somehow passed checks but doesn't meet refund logic
-    return res.status(200).json({
-      message: 'Redemption rejected (no refund needed)',
-      redemption,
-    });
-
+    res.status(200).json({ message: 'Redemption rejected', redemption });
   } catch (err) {
     console.error('Reject redemption error:', err);
     res.status(500).json({ error: 'Failed to reject redemption' });
   }
 };
-
 
 
 

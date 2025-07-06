@@ -20,6 +20,17 @@ export const listenToApprovedRequests = (callback) => {
   };
 };
 
+export const listenToApprovedRequestsByAdmin = (callback) => {
+  socket.on('admin-approved-request', callback);
+  return () => socket.off('admin-approved-request', callback);
+};
+
+export const listenToRejectRequestsByAdmin = (callback) => {
+  socket.on('admin-reject-request', callback);
+  return () => socket.off('admin-reject-request', callback);
+};
+
+
 
 export const disconnectSocket = () => {
   if (socket) socket.disconnect();

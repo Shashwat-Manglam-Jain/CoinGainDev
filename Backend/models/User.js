@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema(
       default: 'user',
     },
 
-    points: {
+    points: { 
       type: Number,
       default: 0,
       min: 0,

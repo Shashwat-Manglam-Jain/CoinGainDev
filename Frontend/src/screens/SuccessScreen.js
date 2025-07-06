@@ -7,7 +7,7 @@ export default function SuccessScreen({ route, navigation }) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigation.navigate('AdminDashboard');
+      navigation.replace('AdminDashboard');
     }, 4000);
 
     return () => clearTimeout(timer);

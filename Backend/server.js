@@ -22,6 +22,8 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/fetchdata', require('./routes/adminRoutes'));
 app.use('/Userfetch', require('./routes/userRoutes'));
+app.use('/superadmin', require('./routes/SuperAdminRoutes'));
+
 setupSocket(server);
 // Start server
 server.listen(PORT, () => {

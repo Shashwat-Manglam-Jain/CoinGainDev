@@ -15,9 +15,10 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Mobile number already registered' });
     }
 
-    let userUniqueCode = null;
-    let assignedAdmin = null;
+    let userUniqueCode;
+    let assignedAdmin;
 
+    // Handle user role logic
     if (role === 'user') {
       if (!adminId) {
         return res.status(400).json({ message: 'Admin ID is required for user registration' });
@@ -44,24 +45,26 @@ const registerUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate uniqueCode for admin
-    const uniqueCode =
-      role !== 'user'
-        ? name.split(' ').map(word => word[0]).join('').toUpperCase() + mobile.slice(-3)
-        : undefined;
-
-    const user = new User({
+    const userData = {
       name,
       mobile,
       password: hashedPassword,
       plainPassword: password,
       role,
       location,
-      adminId: assignedAdmin,
-      userUniqueCode,
-      uniqueCode,
-    });
+    };
 
+    if (assignedAdmin) userData.adminId = assignedAdmin;
+    if (userUniqueCode) userData.userUniqueCode = userUniqueCode;
+    if (role !== 'user') {
+      userData.uniqueCode = name
+        .split(' ')
+        .map(word => word[0])
+        .join('')
+        .toUpperCase() + mobile.slice(-3);
+    }
+
+    const user = new User(userData);
     await user.save();
 
     const token = jwt.sign(
@@ -88,6 +91,7 @@ const registerUser = async (req, res) => {
   }
 };
 
+
 const loginUser = async (req, res) => {
   try {
     const { mobile, password, role } = req.body;
@@ -103,6 +107,13 @@ const loginUser = async (req, res) => {
 
     if (user.role !== role) {
       return res.status(400).json({ message: 'Incorrect role for this user' });
+    }
+
+    // ✅ Only check validate for admin
+    if (role === 'admin' && user.validate !== true) {
+      return res.status(403).json({
+        message: 'Superadmin has not validated your account',
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -132,6 +143,8 @@ const loginUser = async (req, res) => {
     return res.status(500).json({ message: 'Server error during login' });
   }
 };
+
+
 
 module.exports = {
   registerUser,

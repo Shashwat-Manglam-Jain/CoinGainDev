@@ -230,7 +230,7 @@ const handleSave = async () => {
           )}
           right={() => (
             <TouchableOpacity onPress={handleEditUser} style={{ marginRight: 30 , top: 5}}>
-              <MaterialCommunityIcons name="book-edit" size={30} color={colors.error} />
+           <MaterialIcons name="edit" size={30} color={colors.error} />
             </TouchableOpacity>
           )}
         />

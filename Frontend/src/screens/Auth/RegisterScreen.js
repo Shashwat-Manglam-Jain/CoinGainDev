@@ -68,11 +68,19 @@ useEffect(() => {
 
 const handleRegister = async () => {
   if (!name || !mobile || !password || !confirmPassword || !location) {
-    return Toast.show({ type: 'error', text1: 'Please fill all fields.' });
+    return Toast.show({
+      type: 'error',
+      text1: 'Incomplete Information',
+      text2: 'Please fill all the fields to continue.',
+    });
   }
 
   if (password !== confirmPassword) {
-    return Toast.show({ type: 'error', text1: 'Passwords do not match.' });
+    return Toast.show({
+      type: 'error',
+      text1: 'Password Mismatch',
+      text2: 'Password and confirm password do not match.',
+    });
   }
 
   setLoading(true);
@@ -89,32 +97,48 @@ const handleRegister = async () => {
 
     const { user, token, message } = res.data;
 
-    // Defensive check
     if (!user || !token) {
       throw new Error('Invalid response from server: user or token missing');
     }
 
-    // Save data consistently with login
-    await AsyncStorage.setItem('userToken', token);
-    await AsyncStorage.setItem('userInfo', JSON.stringify(user));
+    if (role === 'user') {
+      await AsyncStorage.setItem('userToken', token);
+      await AsyncStorage.setItem('userInfo', JSON.stringify(user));
 
-    Toast.show({ type: 'success', text1: message || 'Registered!' });
+      Toast.show({
+        type: 'success',
+        text1: 'Registration Successful 🎉',
+        text2: 'Welcome to CoinGain! Redirecting...',
+      });
 
-    // Optionally navigate to dashboard directly (skip login if token is valid)
-    navigation.replace(user.role === 'admin' ? 'AdminDashboard' : 'UserDashboard');
+      setTimeout(() => navigation.replace('UserDashboard'), 1500);
+    }
+
+    if (role === 'admin') {
+      Toast.show({
+        type: 'info',
+        text1: 'Awaiting Approval',
+        text2: 'Your admin account is pending SUPERADMIN validation.',
+        visibilityTime: 5000,
+        autoHide: true,
+        topOffset: 50,
+      });
+
+      setTimeout(() => navigation.replace('Login'), 2500);
+    }
 
   } catch (err) {
     console.error('Register error:', err.response?.data || err.message);
 
     Toast.show({
       type: 'error',
-      text1: err.response?.data?.message || 'Registration failed.',
+      text1: 'Registration Failed 😞',
+      text2: err.response?.data?.message || 'Something went wrong. Try again.',
     });
   } finally {
     setLoading(false);
   }
 };
-
 
   const handleLoginRedirect = () => navigation.navigate('Login');
 

@@ -346,6 +346,9 @@ export default function AdminDashboard({ navigation }) {
 
   const handleTabChange = (tab) => {
     setCurrentTab(tab);
+       setEditUser(null);
+         setImagePreview(null);
+    setEditingRewardId(null);
   };
 
   const handleButtonPress = (callback) => {
@@ -842,6 +845,7 @@ const unreadNotificationsCount = [
       case 'home':
         return (
           <Home
+          setAdminUser={setAdminUser}
             adminUser={adminUser}
             users={users}
             rewards={rewards}
@@ -997,7 +1001,7 @@ const unreadNotificationsCount = [
           <View style={styles.scrollContentContainer}>{item.content}</View>
         )}
         keyExtractor={(item) => item.key}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
         bounces={true}
         style={styles.scrollContent}
         

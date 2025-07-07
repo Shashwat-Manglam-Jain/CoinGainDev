@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,8 +14,7 @@ import {
 import { Button, Card, TextInput, Avatar } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ThemeToggle from '../../components/ThemeToggle';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { Picker } from '@react-native-picker/picker';
 import { ThemeContext } from '../../ThemeContext';
@@ -27,7 +26,7 @@ const isWeb = Platform.OS === 'web';
 const CARD_WIDTH = SCREEN_WIDTH - 100;
 const CARD_HEIGHT = 250;
 
-// Define ButtonText component (copied from AdminDashboard for consistency)
+// Define ButtonText component
 const ButtonText = ({ children, style }) => (
   <Text
     style={[
@@ -80,15 +79,35 @@ const Home = ({
     name: adminUser?.name || '',
     mobile: adminUser?.mobile || '',
   });
+  const [localRewardPercentage, setLocalRewardPercentage] = useState(rewardPercentage || 10);
 
   const rewardOptions = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
-  const handleSliderChange = (index) => {
-    setRewardPercentage(rewardOptions[index]);
-  };
+  // Sync localRewardPercentage with prop and ensure validity
+  useEffect(() => {
+    console.log('Prop rewardPercentage:', rewardPercentage);
+    if (!rewardOptions.includes(rewardPercentage)) {
+      console.log('Invalid rewardPercentage, setting to 10:', rewardPercentage);
+      setRewardPercentage(10);
+      setLocalRewardPercentage(10);
+    } else {
+      setLocalRewardPercentage(rewardPercentage);
+    }
+  }, [rewardPercentage, setRewardPercentage]);
 
-  const handleButtonPress = (callback) => {
-    callback();
+  // Sync editAdmin with adminUser changes
+  useEffect(() => {
+    console.log('Syncing editAdmin with adminUser:', adminUser);
+    setEditAdmin({
+      name: adminUser?.name || '',
+      mobile: adminUser?.mobile || '',
+    });
+  }, [adminUser]);
+
+  const handleRewardSelect = (value) => {
+    console.log('Selected reward percentage:', value);
+    setLocalRewardPercentage(value);
+    setRewardPercentage(value);
   };
 
   const handleGetReward = () => {
@@ -106,7 +125,7 @@ const Home = ({
       makepayment(
         invoice,
         numericAmount,
-        rewardPercentage,
+        localRewardPercentage,
         expiry,
         `${adminUser?.uniqueCode}${receiverCode}`
       ).finally(() => setIsLoading(false));
@@ -115,6 +134,7 @@ const Home = ({
   };
 
   const handleEditAdmin = () => {
+    console.log('Opening edit modal with adminUser:', adminUser);
     setEditAdmin({
       name: adminUser?.name || '',
       mobile: adminUser?.mobile || '',
@@ -140,16 +160,18 @@ const Home = ({
       return;
     }
     setIsLoading(true);
-    setEditModalVisible(false); // Close modal immediately
     try {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) {
         throw new Error('Authentication token is missing');
       }
+      if (!adminUser?._id) {
+        throw new Error('Admin user ID is missing');
+      }
       console.log('Admin User before update:', adminUser);
       console.log('setAdminUser available:', typeof setAdminUser === 'function');
       console.log('Sending API request with payload:', {
-        adminId: adminUser?._id,
+        adminId: adminUser._id,
         name: editAdmin.name,
         phoneno: editAdmin.mobile,
       });
@@ -166,33 +188,42 @@ const Home = ({
 
       console.log('API response:', response.data);
 
-      // Validate response data
       if (!response.data.admin || !response.data.admin._id) {
         throw new Error('Invalid response from server: missing admin data');
       }
 
-      // Update state if setAdminUser is available
-      if (typeof setAdminUser === 'function') {
-        setAdminUser(response.data.admin);
-      } else {
-        console.warn('setAdminUser is not a function, skipping state update');
-      }
-
-      // Update AsyncStorage with full admin object
+      const updatedUserInfo = {
+        _id: response.data.admin._id,
+        name: response.data.admin.name,
+        mobile: response.data.admin.mobile,
+        role: response.data.admin.role,
+        uniqueCode: response.data.admin.uniqueCode,
+      };
+      console.log('Updating AsyncStorage with userInfo:', updatedUserInfo);
       try {
-        const updatedUserInfo = {
-          _id: response.data.admin._id,
-          name: response.data.admin.name,
-          mobile: response.data.admin.mobile,
-          role: response.data.admin.role,
-          uniqueCode: response.data.admin.uniqueCode,
-        };
-        console.log('Updating AsyncStorage with userInfo:', updatedUserInfo);
         await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
         console.log('AsyncStorage updated successfully');
+        // Verify AsyncStorage update
+        const storedUserInfo = await AsyncStorage.getItem('userInfo');
+        const parsedUserInfo = JSON.parse(storedUserInfo);
+        console.log('Stored userInfo after update:', parsedUserInfo);
+        if (!parsedUserInfo || parsedUserInfo._id !== updatedUserInfo._id) {
+          throw new Error('AsyncStorage verification failed: data mismatch');
+        }
       } catch (storageError) {
-        console.error('AsyncStorage error:', storageError);
-        throw new Error('Failed to save admin data locally');
+        console.error('AsyncStorage setItem error:', storageError);
+        throw new Error('Failed to save admin data to AsyncStorage');
+      }
+
+      if (typeof setAdminUser === 'function') {
+        setAdminUser(updatedUserInfo);
+        console.log('Updated adminUser state:', updatedUserInfo);
+      } else {
+        console.error('setAdminUser is not a function');
+        setEditAdmin({
+          name: updatedUserInfo.name,
+          mobile: updatedUserInfo.mobile,
+        });
       }
 
       Toast.show({
@@ -213,10 +244,13 @@ const Home = ({
       });
     } finally {
       setIsLoading(false);
+      setEditModalVisible(false);
     }
   };
 
-  const renderRewardItem = ({ item, index }) => (
+  const renderRewardItem = ({ item }) => (
+    <TouchableWithoutFeedback    onPressIn={handleTouchStart}
+            onPressOut={handleTouchEnd}>
     <ImageBackground
       key={item._id}
       source={{ uri: item.image }}
@@ -236,7 +270,7 @@ const Home = ({
         <Text style={styles.carouselText}>{item.name}</Text>
         <Text style={styles.carouselSubText}>{item.pointsRequired} points</Text>
       </View>
-    </ImageBackground>
+    </ImageBackground></TouchableWithoutFeedback>
   );
 
   return (
@@ -263,10 +297,10 @@ const Home = ({
               Paid Amount: ₹{parseFloat(amount).toFixed(2)}
             </Text>
             <Text style={[styles.cardText, { color: colors.error }]}>
-              Points: {Math.round((rewardPercentage / 100) * parseFloat(amount))}
+              Points: {Math.round((localRewardPercentage / 100) * parseFloat(amount))}
             </Text>
             <Text style={[styles.cardText, { color: colors.text }]}>
-              Reward Percentage: {rewardPercentage}%
+              Reward Percentage: {localRewardPercentage}%
             </Text>
             <Text style={[styles.cardText, { color: colors.text }]}>
               Expiry: {expiry}
@@ -282,7 +316,7 @@ const Home = ({
                   buttonColor={colors.primary}
                   textColor="#fff"
                   onPress={() => {
-                    handleButtonPress(modalAction);
+                    modalAction();
                     setModalVisible(false);
                   }}
                   disabled={isLoading}
@@ -297,7 +331,7 @@ const Home = ({
                   mode="outlined"
                   style={styles.actionButton}
                   textColor={colors.text}
-                  onPress={() => handleButtonPress(() => setModalVisible(false))}
+                  onPress={() => setModalVisible(false)}
                   disabled={isLoading}
                   accessible
                   accessibilityLabel="Cancel payment"
@@ -350,10 +384,7 @@ const Home = ({
                   style={styles.actionButton}
                   buttonColor={colors.primary}
                   textColor="#fff"
-                  onPress={() => {
-                    handleButtonPress(handleSaveAdmin);
-                    setEditModalVisible(false);
-                  }}
+                  onPress={handleSaveAdmin}
                   disabled={isLoading}
                   accessible
                   accessibilityLabel="Save admin details"
@@ -366,7 +397,7 @@ const Home = ({
                   mode="outlined"
                   style={styles.actionButton}
                   textColor={colors.text}
-                  onPress={() => handleButtonPress(() => setEditModalVisible(false))}
+                  onPress={() => setEditModalVisible(false)}
                   disabled={isLoading}
                   accessible
                   accessibilityLabel="Cancel edit"
@@ -390,25 +421,24 @@ const Home = ({
               style={{ position: 'relative', right: 10 }}
               buttonColor={colors.error}
               textColor="#fff"
-              onPress={() =>
-                handleButtonPress(async () => {
-                  try {
-                    await AsyncStorage.multiRemove(['userInfo', 'userToken']);
-                    navigation.navigate('Login');
-                    Toast.show({
-                      type: 'success',
-                      text1: 'Logged Out',
-                      text2: 'You have been logged out successfully',
-                    });
-                  } catch (error) {
-                    Toast.show({
-                      type: 'error',
-                      text1: 'Logout Failed',
-                      text2: 'Failed to log out: ' + error.message,
-                    });
-                  }
-                })
-              }
+              onPress={async () => {
+                try {
+                  await AsyncStorage.multiRemove(['userInfo', 'userToken']);
+                  navigation.navigate('Login');
+                  Toast.show({
+                    type: 'success',
+                    text1: 'Logged Out',
+                    text2: 'You have been logged out successfully',
+                  });
+                } catch (error) {
+                  console.error('Logout error:', error);
+                  Toast.show({
+                    type: 'error',
+                    text1: 'Logout Failed',
+                    text2: 'Failed to log out: ' + error.message,
+                  });
+                }
+              }}
             >
               <Text>Logout</Text>
             </Button>
@@ -437,7 +467,7 @@ const Home = ({
           )}
           right={() => (
             <TouchableOpacity onPress={handleEditAdmin}>
-              <MaterialCommunityIcons name="book-edit" size={30} color={colors.error} />
+              <MaterialIcons name="edit" size={30} color={colors.error} />
             </TouchableOpacity>
           )}
         />
@@ -552,31 +582,38 @@ const Home = ({
           </View>
           <View style={{ marginBottom: 20 }}>
             <Text style={{ color: colors.text, fontSize: 16, marginBottom: 8 }}>
-              Reward :               {rewardPercentage}%
+              Reward Percentage: 
             </Text>
-            <Slider
-              style={{ width: '100%', height: 40 }}
-              minimumValue={0}
-              maximumValue={rewardOptions.length - 1}
-              step={1}
-              value={rewardOptions.indexOf(rewardPercentage)}
-              minimumTrackTintColor={colors.primary}
-              maximumTrackTintColor="#ccc"
-              thumbTintColor={colors.primary}
-              onValueChange={handleSliderChange}
-            />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
               {rewardOptions.map((value) => (
-                <Text
+                <TouchableOpacity
                   key={value}
-                  style={{
-                    fontSize: 10,
-                    color: rewardPercentage === value ? colors.primary : colors.text,
-                    fontWeight: rewardPercentage === value ? 'bold' : 'normal',
-                  }}
+                  style={[
+                    styles.rewardButton,
+                    {
+                      backgroundColor:
+                        localRewardPercentage === value
+                          ? colors.primary
+                          : isDarkMode
+                          ? '#333'
+                          : '#f0f0f0',
+                    },
+                  ]}
+                  onPress={() => handleRewardSelect(value)}
                 >
-                  {value}
-                </Text>
+                  <Text
+                    style={{
+                      color:
+                        localRewardPercentage === value
+                          ? '#fff'
+                          : colors.text,
+                      fontWeight: localRewardPercentage === value ? 'bold' : 'normal',
+                      fontSize: 14,
+                    }}
+                  >
+                    {value}%
+                  </Text>
+                </TouchableOpacity>
               ))}
             </View>
           </View>
@@ -881,5 +918,12 @@ const styles = StyleSheet.create({
   carouselSubText: {
     color: '#fff',
     fontSize: 16,
+  },
+  rewardButton: {
+    width: '18%',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 5,
   },
 });

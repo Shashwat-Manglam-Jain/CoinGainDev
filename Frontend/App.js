@@ -12,8 +12,9 @@ import RegisterScreen from './src/screens/Auth/RegisterScreen';
 import UserDashboard from './src/screens/User/UserDashboard';
 import AdminDashboard from './src/screens/Admin/AdminDashboard';
 import Toast from 'react-native-toast-message';
-import SuccessScreen from './src/screens/SuccessScreen';
-import ReceiverSuccess from './src/screens/RecieverSuccess';
+import SuccessScreen from './src/screens/animation/SuccessScreen';
+import ReceiverSuccess from './src/screens/animation/RecieverSuccess';
+import SuperAdminDashboard from './src/screens/SuperAdmin/SuperAdminDashboard';
 
 const Stack = createStackNavigator();
 
@@ -37,7 +38,9 @@ export default function App() {
           setInitialRoute('AdminDashboard');
         } else if (token && parsedUser?.role === 'user') {
           setInitialRoute('UserDashboard');
-        } else {
+        }  else if (token && parsedUser?.role === 'SuperAdmin') {
+          setInitialRoute('SuperAdminDashboard');
+        }else {
           setInitialRoute('Login');
         }
       } catch (e) {
@@ -70,7 +73,7 @@ export default function App() {
       >
         <NavigationContainer>
           <Stack.Navigator
-            initialRouteName={initialRoute}
+             initialRouteName={initialRoute}
             screenOptions={{
               headerShown: false,
               animationEnabled: true,
@@ -94,8 +97,10 @@ export default function App() {
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="UserDashboard" component={UserDashboard} />
             <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+                     <Stack.Screen name="SuperAdminDashboard" component={SuperAdminDashboard} />
 <Stack.Screen name="SuccessScreen" component={SuccessScreen} options={{ headerShown: false }} />
 <Stack.Screen name="ReceiverSuccess" component={ReceiverSuccess} options={{ headerShown: false }} />
+
           </Stack.Navigator>
         </NavigationContainer>
         <Toast />

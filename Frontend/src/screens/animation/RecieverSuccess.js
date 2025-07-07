@@ -21,7 +21,7 @@ export default function ReceiverSuccess({ route, navigation }) {
   return (
     <View style={styles.container}>
       <LottieView
-        source={require('../../assets/success.json')}
+        source={require('../../../assets/success.json')}
         autoPlay
         loop={false}
         style={styles.animation}

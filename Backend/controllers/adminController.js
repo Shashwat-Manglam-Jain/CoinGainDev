@@ -136,26 +136,83 @@ const deleteReward = async (req, res) => {
 const approveRedemption = async (req, res) => {
   try {
     const redemption = await Redemption.findById(req.params.id);
+    if (!redemption) return res.status(404).json({ error: 'Redemption not found' });
+    if (redemption.status === 'approved') return res.status(400).json({ message: 'Already approved' });
 
-    if (!redemption) {
-      return res.status(404).json({ error: 'Redemption not found' });
+    const user = await User.findById(redemption.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    let pointsToDeduct = redemption.pointsRequired;
+
+    // Step 1: Try deducting from remainingPointsToDeduct first
+    const paymentsWithRemainder = await PaymentHistory.find({
+      receiverId: redemption.userId,
+      remainingPointsToDeduct: { $gt: 0 },
+      status: 'valid',
+    }).sort({ expiryMonth: 1 });
+
+    for (const payment of paymentsWithRemainder) {
+      if (pointsToDeduct <= 0) break;
+
+      const available = payment.remainingPointsToDeduct;
+
+      if (pointsToDeduct >= available) {
+        pointsToDeduct -= available;
+        payment.remainingPointsToDeduct = null;
+        payment.status = 'expired';
+      } else {
+        payment.remainingPointsToDeduct = available - pointsToDeduct;
+        pointsToDeduct = 0;
+      }
+
+      await payment.save();
     }
 
-    if (redemption.status === 'approved') {
-      return res.status(400).json({ message: 'Redemption is already approved' });
+    // Step 2: If still points left, deduct from unused payments
+    if (pointsToDeduct > 0) {
+      const newPayments = await PaymentHistory.find({
+        receiverId: redemption.userId,
+        status: 'valid',
+        remainingPointsToDeduct: null, // not partially used before
+      }).sort({ expiryMonth: 1 });
+
+      for (const payment of newPayments) {
+        if (pointsToDeduct <= 0) break;
+
+        const percent = payment.rewardPercentage || 0;
+        const rewardPoints = Math.floor((payment.amount * percent) / 100);
+
+        if (pointsToDeduct >= rewardPoints) {
+          pointsToDeduct -= rewardPoints;
+          payment.status = 'expired';
+          payment.remainingPointsToDeduct = null;
+        } else {
+          payment.remainingPointsToDeduct = rewardPoints - pointsToDeduct;
+          pointsToDeduct = 0;
+        }
+
+        await payment.save();
+      }
     }
+
+    if (pointsToDeduct > 0) {
+      return res.status(400).json({ message: 'Not enough available reward points' });
+    }
+
+    // Step 3: Deduct from user's points balance
+    user.points = Math.max(0, user.points - redemption.pointsRequired);
+    await user.save();
 
     redemption.status = 'approved';
     await redemption.save();
 
-    approveRedemptionByAdmin(redemption.userId.toString(), { redemption });
-
-    res.status(200).json({ message: 'Redemption approved successfully', redemption });
+    return res.status(200).json({ message: 'Redemption approved', redemption });
   } catch (err) {
-    console.error('Approve redemption error:', err);
-    res.status(500).json({ error: 'Failed to approve redemption' });
+    console.error('Redemption error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
+
 
 // Reject a redemption request
 const rejectRedemption = async (req, res) => {

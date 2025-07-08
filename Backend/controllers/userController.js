@@ -357,6 +357,76 @@ const editUser = async (req, res) => {
   }
 };
 
+const checkExpiration = async (req, res) => {
+  try {
+    const { adminId, userID } = req.params;
+
+    if (!adminId || !userID) {
+      return res.status(400).json({ message: 'adminId and userID are required' });
+    }
+
+    const today = new Date();
+
+    
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate()); // strip time
+
+
+    const paymentHistory = await PaymentHistory.find({
+      senderId: adminId,
+      receiverId: userID,
+      status: 'valid',
+    });
+
+    const user = await User.findById(userID);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let totalDeducted = 0;
+
+    for (const payment of paymentHistory) {
+      const expiryDate = new Date(payment.expiryMonth);
+      const deductionDate = new Date(expiryDate.getFullYear(), expiryDate.getMonth(), expiryDate.getDate() + 1);
+
+      // If today is the deduction date
+      if (todayDate.getTime() === deductionDate.getTime()) {
+        const percent = payment.rewardPercentage || 0;
+        const totalRewardPoints = Math.floor((payment.amount * percent) / 100);
+
+        let deduction = totalRewardPoints;
+
+        // If partially used in redemption, deduct only remaining
+        if (payment.remainingPointsToDeduct != null) {
+          deduction = payment.remainingPointsToDeduct;
+        }
+
+        if (deduction > 0) {
+          user.points = Math.max(0, user.points - deduction);
+          totalDeducted += deduction;
+
+          // Expire the payment after deduction
+          payment.status = 'expired';
+          payment.remainingPointsToDeduct = null;
+          
+          await payment.save();
+        }
+      }
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Processed eligible expired payments',
+      totalPointsDeducted: totalDeducted,
+    });
+
+  } catch (error) {
+    console.error('Error in checkExpiration:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
 
 module.exports = {
   getUser,
@@ -371,5 +441,6 @@ module.exports = {
   fetchAdminDetails,
   markNotificationRead ,
   fetchexpiryofToken,
-  editUser
+  editUser ,
+   checkExpiration
 };

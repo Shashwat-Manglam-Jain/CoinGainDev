@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useEffect, useState } from 'react';
+import React, { useContext, useRef, useEffect, useState, memo } from 'react';
 import { View, Text, ScrollView, ImageBackground, TouchableWithoutFeedback, Dimensions, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme, Card, Avatar, Button, Badge, TextInput } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
@@ -411,4 +411,4 @@ const modalStyles = StyleSheet.create({
   },
 });
 
-export default Profile;
+export default memo(Profile);

@@ -1,5 +1,5 @@
 
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, memo } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity } from 'react-native';
 import { useTheme, Card, TextInput, Button, Badge } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
@@ -124,4 +124,4 @@ const Rewards = ({ user, rewards, handleRedeem }) => {
   );
 };
 
-export default Rewards;
+export default memo(Rewards);

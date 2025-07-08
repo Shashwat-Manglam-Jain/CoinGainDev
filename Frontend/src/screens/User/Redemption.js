@@ -1,5 +1,5 @@
 
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, memo } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity } from 'react-native';
 import { useTheme, Card, Button } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
@@ -95,4 +95,4 @@ const Redemption = ({ redemptions, handleClearRedemption }) => {
   );
 };
 
-export default Redemption;
+export default memo(Redemption);

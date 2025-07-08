@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { View, Text, FlatList, Platform, Dimensions, StyleSheet, Modal } from 'react-native';
 import { Card, TextInput, Button } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
@@ -75,11 +75,11 @@ const Users = ({
     setSendTokenUserId(null); // Reset user ID
     try {
       await handleSendTokens(selectedUser._id, parseFloat(tokenAmount));
-      Toast.show({
-        type: 'success',
-        text1: 'Tokens Sent',
-        text2: `Successfully sent ${tokenAmount} tokens to ${selectedUser.name || 'user'}`,
-      });
+      // Toast.show({
+      //   type: 'success',
+      //   text1: 'Tokens Sent',
+      //   text2: `Successfully sent ${tokenAmount} tokens to ${selectedUser.name || 'user'}`,
+      // });
     } catch (error) {
       console.error('Send tokens error:', {
         message: error.message,
@@ -352,7 +352,7 @@ Note: These coins will never expire
   );
 };
 
-export default Users;
+export default memo(Users);
 
 const styles = StyleSheet.create({
   tabContent: {

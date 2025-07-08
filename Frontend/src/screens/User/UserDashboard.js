@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useCallback, memo } from 'react';
 import { StyleSheet, FlatList, ActivityIndicator, Modal, View, Text, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme, Button, Badge } from 'react-native-paper';
@@ -51,7 +51,7 @@ const UserDashboard = () => {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, fetchRedemptions]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -69,7 +69,7 @@ const UserDashboard = () => {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, fetchRedemptions]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -638,6 +638,63 @@ const UserDashboard = () => {
     }
   }, []);
 
+  const checkAndHandleExpiredPayments = useCallback(async (adminId, userID, setUser, fetchUser) => {
+    if (!adminId || !userID) {
+      Toast.show({
+        type: 'error',
+        text1: 'Missing IDs',
+        text2: 'Admin or User ID not found',
+      });
+      return;
+    }
+
+    try {
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) throw new Error('No user token found');
+
+      const res = await axios.get(`${API_BASE_URL}/Userfetch/check-expiration/${adminId}/${userID}`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+
+      const { message, totalPointsDeducted, updatedPoints } = res.data;
+
+      if (totalPointsDeducted > 0) {
+        // Update user points in state to reflect deduction
+        setUser((prevUser) => ({
+          ...prevUser,
+          points: updatedPoints || prevUser.points - totalPointsDeducted,
+        }));
+
+        // Update AsyncStorage with new user points
+        const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+        const updatedUser = { ...userData, points: updatedPoints || userData.points - totalPointsDeducted };
+        await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
+
+        Toast.show({
+          type: 'info',
+          text1: 'Points Deducted',
+          text2: `${totalPointsDeducted} points were deducted due to expired rewards.`,
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'All Good!',
+          text2: 'No expired Coins found.',
+        });
+      }
+
+      // Refresh user data to ensure consistency
+      await fetchUser(userID);
+    } catch (err) {
+      console.error('Check expiration failed:', err.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to check reward expiration. Please try again later.',
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -661,6 +718,7 @@ const UserDashboard = () => {
         }
 
         await Promise.all([
+          checkAndHandleExpiredPayments(adminId, userData._id, setUser, fetchUser),
           fetchExpiryOfToken(adminId, userData._id),
           fetchAdmin(adminId),
           fetchReward(adminId),
@@ -685,14 +743,14 @@ const UserDashboard = () => {
     fetchNotifications,
     fetchRedemptions,
     navigation,
-    fetchExpiryOfToken
+    fetchExpiryOfToken,
   ]);
 
-  const handleTabPress = (tab) => {
+  const handleTabPress = useCallback((tab) => {
     setCurrentTab(tab);
-  };
+  }, []);
 
-  const renderContent = (tab) => {
+  const renderContent = useCallback((tab) => {
     switch (tab) {
       case 'profile':
         return (
@@ -819,56 +877,56 @@ const UserDashboard = () => {
       default:
         return null;
     }
-  };
+  }, [user, admin, rewards, redemptions, notifications, colors, isDarkMode, navigation, setCurrentTab, handleLogout, saveRedemptions, readNotification, handleMarkAllRead, deleteRedemption, setModalVisible, setModalMessage, setModalAction, setUser]);
 
   const [refreshing, setRefreshing] = useState(false);
-const onRefresh = useCallback(() => {
-  setRefreshing(true);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
 
-  const loadData = async () => {
-    try {
-      const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
+    const loadData = async () => {
+      try {
+        const userData = JSON.parse(await AsyncStorage.getItem('userInfo')) || {};
 
-      if (!userData._id) {
+        if (!userData._id) {
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'No user data found. Please log in.',
+          });
+          navigation.replace('Login');
+          return;
+        }
+
+        const fetchedUser = await fetchUser(userData._id);
+        const adminId = fetchedUser?.adminId;
+
+        if (!adminId) {
+          throw new Error('Admin ID not found for user');
+        }
+
+        await Promise.all([
+          checkAndHandleExpiredPayments(adminId, userData._id, setUser, fetchUser),
+          fetchExpiryOfToken(adminId, userData._id),
+          fetchAdmin(adminId),
+          fetchNotifications(userData._id),
+          fetchRedemptions(userData._id),
+        ]);
+
+        console.log('🔄 Data refreshed successfully!');
+      } catch (error) {
+        console.error('Initial data load error:', error.message);
         Toast.show({
           type: 'error',
           text1: 'Error',
-          text2: 'No user data found. Please log in.',
+          text2: 'Failed to load initial data.',
         });
-        navigation.replace('Login');
-        return;
+      } finally {
+        setRefreshing(false);
       }
+    };
 
-      const fetchedUser = await fetchUser(userData._id);
-      const adminId = fetchedUser?.adminId;
-
-      if (!adminId) {
-        throw new Error('Admin ID not found for user');
-      }
-
-      await Promise.all([
-        fetchExpiryOfToken(adminId, userData._id),
-        fetchAdmin(adminId),
-        fetchNotifications(userData._id),
-        fetchRedemptions(userData._id),
-      ]);
-
-      console.log('🔄 Data refreshed successfully!');
-    } catch (error) {
-      console.error('Initial data load error:', error.message);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to load initial data.',
-      });
-    } finally {
-      setRefreshing(false); 
-    }
-  };
-
-  loadData(); 
-
-}, []);
+    loadData();
+  }, [fetchUser, fetchAdmin, fetchNotifications, fetchRedemptions, fetchExpiryOfToken, navigation]);
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
 
@@ -918,14 +976,14 @@ const onRefresh = useCallback(() => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-          refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#2196F3"
-          colors={['#2196F3']}
-        />
-      }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2196F3"
+            colors={['#2196F3']}
+          />
+        }
       />
       <View
         style={[
@@ -978,4 +1036,4 @@ const onRefresh = useCallback(() => {
   );
 };
 
-export default UserDashboard;
+export default memo(UserDashboard);

@@ -1,5 +1,5 @@
 
-import React, { useContext } from 'react';
+import React, { memo, useContext } from 'react';
 import { View, Text, FlatList, TouchableOpacity } from 'react-native';
 import { useTheme, Button, Avatar } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
@@ -94,4 +94,4 @@ const Notifications = ({ notifications, handleMarkAllRead, handleClearNotificati
   );
 };
 
-export default Notifications;
+export default memo(Notifications);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, FlatList, Platform, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card, Avatar, Button } from 'react-native-paper';
 
@@ -222,7 +222,7 @@ const Notification = ({
   );
 };
 
-export default Notification;
+export default memo(Notification);
 
 const styles = StyleSheet.create({
   tabContent: {

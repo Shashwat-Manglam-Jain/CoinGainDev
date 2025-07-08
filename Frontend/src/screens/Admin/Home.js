@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -81,38 +81,32 @@ const Home = ({
   });
   const [localRewardPercentage, setLocalRewardPercentage] = useState(rewardPercentage || 10);
 
-  const rewardOptions = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-
-  // Sync localRewardPercentage with prop and ensure validity
-  useEffect(() => {
-    console.log('Prop rewardPercentage:', rewardPercentage);
-    if (!rewardOptions.includes(rewardPercentage)) {
-      console.log('Invalid rewardPercentage, setting to 10:', rewardPercentage);
-      setRewardPercentage(10);
-      setLocalRewardPercentage(10);
-    } else {
-      setLocalRewardPercentage(rewardPercentage);
-    }
-  }, [rewardPercentage, setRewardPercentage]);
+  // Memoize rewardOptions
+  const rewardOptions = useMemo(() => [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], []);
 
   // Sync editAdmin with adminUser changes
   useEffect(() => {
-    console.log('Syncing editAdmin with adminUser:', adminUser);
     setEditAdmin({
       name: adminUser?.name || '',
       mobile: adminUser?.mobile || '',
     });
   }, [adminUser]);
 
-  const handleRewardSelect = (value) => {
-    console.log('Selected reward percentage:', value);
-    setLocalRewardPercentage(value);
-    setRewardPercentage(value);
-  };
+  // Memoize handleRewardSelect
+  const handleRewardSelect = useCallback(
+    (value) => {
+      console.log('Selected reward percentage:', value);
+      setLocalRewardPercentage(value);
+      setRewardPercentage(value);
+    },
+    [setRewardPercentage]
+  );
 
-  const handleGetReward = () => {
+  // Memoize handleGetReward
+  const handleGetReward = useCallback(() => {
     const numericAmount = parseFloat(amount);
-    if (!amount || isNaN(numericAmount) || numericAmount <= 0 || !receiverCode) {
+    const receiverCodeTrimmed = receiverCode?.trim();
+    if (!amount || isNaN(numericAmount) || numericAmount <= 0 || !receiverCodeTrimmed) {
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -127,22 +121,20 @@ const Home = ({
         numericAmount,
         localRewardPercentage,
         expiry,
-        `${adminUser?.uniqueCode}${receiverCode}`
+        `${adminUser?.uniqueCode}${receiverCodeTrimmed}`
       ).finally(() => setIsLoading(false));
     });
     setModalVisible(true);
-  };
+  }, [amount, receiverCode, invoice, localRewardPercentage, expiry, adminUser?.uniqueCode, makepayment]);
 
-  const handleEditAdmin = () => {
+  // Memoize handleEditAdmin
+  const handleEditAdmin = useCallback(() => {
     console.log('Opening edit modal with adminUser:', adminUser);
-    setEditAdmin({
-      name: adminUser?.name || '',
-      mobile: adminUser?.mobile || '',
-    });
     setEditModalVisible(true);
-  };
+  }, [adminUser]);
 
-  const handleSaveAdmin = async () => {
+  // Memoize handleSaveAdmin
+  const handleSaveAdmin = useCallback(async () => {
     if (!editAdmin.name.trim()) {
       Toast.show({
         type: 'error',
@@ -168,8 +160,6 @@ const Home = ({
       if (!adminUser?._id) {
         throw new Error('Admin user ID is missing');
       }
-      console.log('Admin User before update:', adminUser);
-      console.log('setAdminUser available:', typeof setAdminUser === 'function');
       console.log('Sending API request with payload:', {
         adminId: adminUser._id,
         name: editAdmin.name,
@@ -186,8 +176,6 @@ const Home = ({
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      console.log('API response:', response.data);
-
       if (!response.data.admin || !response.data.admin._id) {
         throw new Error('Invalid response from server: missing admin data');
       }
@@ -199,33 +187,8 @@ const Home = ({
         role: response.data.admin.role,
         uniqueCode: response.data.admin.uniqueCode,
       };
-      console.log('Updating AsyncStorage with userInfo:', updatedUserInfo);
-      try {
-        await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
-        console.log('AsyncStorage updated successfully');
-        // Verify AsyncStorage update
-        const storedUserInfo = await AsyncStorage.getItem('userInfo');
-        const parsedUserInfo = JSON.parse(storedUserInfo);
-        console.log('Stored userInfo after update:', parsedUserInfo);
-        if (!parsedUserInfo || parsedUserInfo._id !== updatedUserInfo._id) {
-          throw new Error('AsyncStorage verification failed: data mismatch');
-        }
-      } catch (storageError) {
-        console.error('AsyncStorage setItem error:', storageError);
-        throw new Error('Failed to save admin data to AsyncStorage');
-      }
-
-      if (typeof setAdminUser === 'function') {
-        setAdminUser(updatedUserInfo);
-        console.log('Updated adminUser state:', updatedUserInfo);
-      } else {
-        console.error('setAdminUser is not a function');
-        setEditAdmin({
-          name: updatedUserInfo.name,
-          mobile: updatedUserInfo.mobile,
-        });
-      }
-
+      await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
+      setAdminUser(updatedUserInfo);
       Toast.show({
         type: 'success',
         text1: 'Admin Updated',
@@ -246,31 +209,41 @@ const Home = ({
       setIsLoading(false);
       setEditModalVisible(false);
     }
-  };
+  }, [editAdmin, adminUser, setAdminUser]);
 
-  const renderRewardItem = ({ item }) => (
-    <TouchableWithoutFeedback    onPressIn={handleTouchStart}
-            onPressOut={handleTouchEnd}>
-    <ImageBackground
-      key={item._id}
-      source={{ uri: item.image }}
-      resizeMode="contain"
-      style={styles.carouselItem}
-      imageStyle={styles.carouselImage}
-      defaultSource={require('../../../assets/placeholder.webp')}
-      onError={() =>
-        Toast.show({
-          type: 'error',
-          text1: 'Image Error',
-          text2: 'Failed to load reward image',
-        })
-      }
-    >
-      <View style={styles.textOverlay}>
-        <Text style={styles.carouselText}>{item.name}</Text>
-        <Text style={styles.carouselSubText}>{item.pointsRequired} points</Text>
-      </View>
-    </ImageBackground></TouchableWithoutFeedback>
+  // Memoize points calculation for modal
+  const calculatedPoints = useMemo(() => {
+    const numericAmount = parseFloat(amount);
+    return isNaN(numericAmount) ? 0 : Math.round((localRewardPercentage / 100) * numericAmount);
+  }, [amount, localRewardPercentage]);
+
+  // Memoize renderRewardItem
+  const renderRewardItem = useCallback(
+    ({ item }) => (
+      <TouchableWithoutFeedback onPressIn={handleTouchStart} onPressOut={handleTouchEnd}>
+        <ImageBackground
+          key={item._id}
+          source={{ uri: item.image }}
+          resizeMode="contain"
+          style={styles.carouselItem}
+          imageStyle={styles.carouselImage}
+          defaultSource={require('../../../assets/placeholder.webp')}
+          onError={() =>
+            Toast.show({
+              type: 'error',
+              text1: 'Image Error',
+              text2: 'Failed to load reward image',
+            })
+          }
+        >
+          <View style={styles.textOverlay}>
+            <Text style={styles.carouselText}>{item.name}</Text>
+            <Text style={styles.carouselSubText}>{item.pointsRequired} points</Text>
+          </View>
+        </ImageBackground>
+      </TouchableWithoutFeedback>
+    ),
+    [handleTouchStart, handleTouchEnd]
   );
 
   return (
@@ -290,24 +263,12 @@ const Home = ({
             ]}
           >
             <Text style={[styles.modalTitle, { color: colors.text }]}>Confirm Payment</Text>
-            <Text style={[styles.cardText, { color: colors.text }]}>
-              Invoice: #{invoice}
-            </Text>
-            <Text style={[styles.cardText, { color: colors.text }]}>
-              Paid Amount: ₹{parseFloat(amount).toFixed(2)}
-            </Text>
-            <Text style={[styles.cardText, { color: colors.error }]}>
-              Points: {Math.round((localRewardPercentage / 100) * parseFloat(amount))}
-            </Text>
-            <Text style={[styles.cardText, { color: colors.text }]}>
-              Reward Percentage: {localRewardPercentage}%
-            </Text>
-            <Text style={[styles.cardText, { color: colors.text }]}>
-              Expiry: {expiry}
-            </Text>
-            <Text style={[styles.cardText, { color: colors.text }]}>
-              Receiver Code: {adminUser?.uniqueCode}{receiverCode}
-            </Text>
+            <Text style={[styles.cardText, { color: colors.text }]}>Invoice: #{invoice}</Text>
+            <Text style={[styles.cardText, { color: colors.text }]}>Paid Amount: ₹{parseFloat(amount || 0).toFixed(2)}</Text>
+            <Text style={[styles.cardText, { color: colors.error }]}>Points: {calculatedPoints}</Text>
+            <Text style={[styles.cardText, { color: colors.text }]}>Reward Percentage: {localRewardPercentage}%</Text>
+            <Text style={[styles.cardText, { color: colors.text }]}>Expiry: {expiry}</Text>
+            <Text style={[styles.cardText, { color: colors.text }]}>Receiver Code: {adminUser?.uniqueCode}{receiverCode}</Text>
             <View style={styles.buttonRow}>
               <View style={styles.buttonContainer}>
                 <Button
@@ -410,9 +371,7 @@ const Home = ({
         </View>
       </Modal>
       <View style={[styles.header, { position: 'relative', top: 10 }]}>
-        <Text style={[styles.title, { color: colors.text, padding: 10 }]}>
-          SHOP ADMIN
-        </Text>
+        <Text style={[styles.title, { color: colors.text, padding: 10 }]}>SHOP ADMIN</Text>
         <View style={styles.headerButtons}>
           <ThemeToggle style={styles.toggle} />
           <View style={styles.buttonContainer}>
@@ -524,7 +483,7 @@ const Home = ({
               value={amount ? amount.toString() : ''}
               onChangeText={(text) => {
                 const numericValue = text.replace(/[^0-9.]/g, '');
-                setAmount(numericValue ? parseFloat(numericValue) : '');
+                setAmount(numericValue ? numericValue : '');
               }}
               placeholder="₹10000"
               placeholderTextColor={colors.placeholder}
@@ -582,7 +541,7 @@ const Home = ({
           </View>
           <View style={{ marginBottom: 20 }}>
             <Text style={{ color: colors.text, fontSize: 16, marginBottom: 8 }}>
-              Reward Percentage: 
+              Reward Percentage:
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
               {rewardOptions.map((value) => (
@@ -692,45 +651,40 @@ const Home = ({
           )}
         />
         <Card.Content>
-          <TouchableWithoutFeedback
-            onPressIn={handleTouchStart}
-            onPressOut={handleTouchEnd}
-          >
-            <FlatList
-              ref={scrollRef}
-              data={rewards}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={CARD_WIDTH}
-              decelerationRate="fast"
-              snapToAlignment="center"
-              renderItem={renderRewardItem}
-              keyExtractor={(item) => item._id}
-              ListEmptyComponent={
-                <View style={styles.carouselItem}>
-                  <Text style={[styles.emptyText, { color: colors.text }]}>
-                    No rewards available
-                  </Text>
-                </View>
-              }
-              onMomentumScrollEnd={(e) => {
-                const newIndex = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
-                setIndex(newIndex);
-              }}
-              getItemLayout={(data, index) => ({
-                length: CARD_WIDTH,
-                offset: CARD_WIDTH * index,
-                index,
-              })}
-            />
-          </TouchableWithoutFeedback>
+          <FlatList
+            ref={scrollRef}
+            data={rewards}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={CARD_WIDTH}
+            decelerationRate="fast"
+            snapToAlignment="center"
+            renderItem={renderRewardItem}
+            keyExtractor={(item) => item._id}
+            ListEmptyComponent={
+              <View style={styles.carouselItem}>
+                <Text style={[styles.emptyText, { color: colors.text }]}>
+                  No rewards available
+                </Text>
+              </View>
+            }
+            onMomentumScrollEnd={(e) => {
+              const newIndex = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
+              setIndex(newIndex);
+            }}
+            getItemLayout={(data, index) => ({
+              length: CARD_WIDTH,
+              offset: CARD_WIDTH * index,
+              index,
+            })}
+          />
         </Card.Content>
       </View>
     </View>
   );
 };
 
-export default Home;
+export default React.memo(Home);
 
 const styles = StyleSheet.create({
   container: {
@@ -879,17 +833,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginVertical: 15,
     fontWeight: '500',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  carousel: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
   },
   carouselItem: {
     width: CARD_WIDTH,

@@ -3,11 +3,12 @@ import { View, Text, StyleSheet } from 'react-native';
 import LottieView from 'lottie-react-native';
 
 export default function SuccessScreen({ route, navigation }) {
-  const { amount, points, receiverUniquecode, senderName } = route.params || {};
+  const { amount, points, receiverUniquecode, senderName ,data} = route.params || {};
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigation.replace('AdminDashboard');
+      navigation.replace('AdminDashboard',{tabdata:data
+      });
     }, 4000);
 
     return () => clearTimeout(timer);

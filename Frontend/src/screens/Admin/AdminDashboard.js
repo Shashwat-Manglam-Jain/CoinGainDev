@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useContext, useEffect, useCallback, memo } from 'react';
 import {
   View,
   StyleSheet,
@@ -62,7 +62,8 @@ const ButtonText = ({ children, style }) => (
   </Text>
 );
 
-export default function AdminDashboard({ navigation }) {
+const AdminDashboard=({route, navigation }) =>{
+  const {tabdata}=route.params || {};
   const { colors } = useTheme();
   const { isDarkMode } = useContext(ThemeContext);
   const [users, setUsers] = useState([]);
@@ -97,6 +98,15 @@ export default function AdminDashboard({ navigation }) {
   const scrollRef = useRef(null);
   const [index, setIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+useEffect(() => {
+  if(tabdata){
+    console.log(tabData);
+    
+    setCurrentTab(tabdata)
+  }
+
+  
+}, [tabdata])
 
   // Load notifications from AsyncStorage
   const loadNotificationsFromStorage = async () => {
@@ -334,6 +344,8 @@ export default function AdminDashboard({ navigation }) {
         receiverUniquecode,
         amount,
         senderName: userInfo.name || userInfo.uniqueCode || 'You',
+        data:currentTab
+      
       });
     } catch (error) {
       Toast.show({
@@ -477,7 +489,7 @@ export default function AdminDashboard({ navigation }) {
       return;
     }
     const user = users.find((u) => u._id === userId);
-    setModalMessage(`Send ${tokenAmount} tokens to ${user.name}?`);
+ setModalMessage(`Send ${tokenAmount} tokens to ${user.name}?`);
     setModalAction(() => async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
@@ -508,6 +520,7 @@ export default function AdminDashboard({ navigation }) {
         receiverUniquecode:user.name,
         amount:null,
         senderName: adminUser.name || adminUser.uniqueCode || 'You',
+        data:currentTab
       });
         Toast.show({
           type: 'success',
@@ -1071,6 +1084,8 @@ const unreadNotificationsCount = [
     </View>
   );
 }
+
+export default memo(AdminDashboard);
 
 const styles = StyleSheet.create({
   container: {

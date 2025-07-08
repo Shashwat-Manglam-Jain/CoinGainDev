@@ -5,7 +5,7 @@ const paymentSchemaHistory = new mongoose.Schema(
     invoice: {
       type: Number,
       required: true,
-      unique: true, // Ensures no duplicate invoice numbers
+      unique: true,
     },
     amount: {
       type: Number,
@@ -32,10 +32,21 @@ const paymentSchemaHistory = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    remainingPointsToDeduct: {
+  type: Number,
+  default: null,
+},
+status: {
+  type: String,
+  enum: ['valid', 'expired'],
+  default: 'valid',
+},
+
   },
   {
-    timestamps: true, // adds createdAt and updatedAt fields automatically
+    timestamps: true,
   }
 );
+
 
 module.exports = mongoose.model('PaymentHistory', paymentSchemaHistory);

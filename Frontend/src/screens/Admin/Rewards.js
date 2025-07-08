@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { memo, useContext } from 'react';
 import { View, Text, FlatList, Platform, ImageBackground, Image, Alert , StyleSheet } from 'react-native';
 import { Card, Avatar, Button, TextInput } from 'react-native-paper';
 import { ThemeContext } from '../../ThemeContext';
@@ -217,7 +217,7 @@ const Rewards = ({
   );
 };
 
-export default Rewards;
+export default memo(Rewards);
 
 const styles = StyleSheet.create({
   container: {

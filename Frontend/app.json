@@ -1,14 +1,14 @@
 {
   "expo": {
     "name": "CoinGain",
-    "slug": "Frontend",
+    "slug": "CoinGain",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icons.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -17,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -28,7 +28,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "3275df8e-b497-4498-9c86-d8004620f589"
+        "projectId": "6614c6b7-5354-4876-b6b4-939b05abdc8e"
       }
     }
   }

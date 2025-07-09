@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Modal,
   Dimensions,
+  BackHandler,
+  Alert,
 } from 'react-native';
 import { Button, Card, TextInput, Avatar } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +21,7 @@ import { ThemeContext } from '../../ThemeContext';
 import { API_BASE_URL } from '../../../utils/api';
 import { RefreshControl } from 'react-native-gesture-handler';
 import moment from 'moment';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -89,6 +92,21 @@ export default function SuperAdminDashboard({ navigation }) {
   );
 
   const pendingAdmins = admins.filter((admin) => admin.status === 'pending');
+
+
+  useFocusEffect(
+    useCallback(() => {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert('Exit App', 'Do you really want to exit?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'OK', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      });
+      return () => backHandler.remove();
+    }, [])
+  );
+
 
   const fetchAllAdmins = useCallback(async () => {
     try {

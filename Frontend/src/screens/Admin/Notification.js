@@ -27,10 +27,10 @@ const Notification = ({
   notifications,
   redemptions,
   handleClearNotification,
-  handlereadNotification,
   handleDismissAllNotifications,
   handleApproveRedemption,
   handleRejectRedemption,
+    handleReadNotification,
   colors,
   isDarkMode,
 }) => {
@@ -89,7 +89,7 @@ const Notification = ({
   );
 
   const renderNotification = ({ item }) => (
-    <TouchableOpacity    onPress={() => handleButtonPress(() =>handlereadNotification(item._id))}
+    <TouchableOpacity    onPress={() => handleButtonPress(() => handleReadNotification(item._id))}
      onLongPress={() => handleButtonPress(() =>handleClearNotification(item._id))}>
     <View
       style={[

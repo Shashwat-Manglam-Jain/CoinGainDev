@@ -13,7 +13,7 @@ import {
   BackHandler,
   RefreshControl,
 } from 'react-native';
-import { Button, Card, TextInput, useTheme, Avatar } from 'react-native-paper';
+import { Button, TextInput, useTheme } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeContext } from '../../ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -28,7 +28,7 @@ import Users from './Users';
 import Rewards from './Rewards';
 import Notification from './Notification';
 import History from './History';
-import {listenToApprovedRequests, registerUser } from '../../../utils/socket';
+import { listenToApprovedRequests, registerUser } from '../../../utils/socket';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -41,6 +41,7 @@ const defaultAdminUser = {
   mobile: '94244xxxxx',
   role: 'admin',
   uniqueCode: 'VJGAJW',
+  validate: true,
 };
 
 const ButtonText = ({ children, style }) => (
@@ -62,8 +63,8 @@ const ButtonText = ({ children, style }) => (
   </Text>
 );
 
-const AdminDashboard=({route, navigation }) =>{
-  const {tabdata}=route.params || {};
+const AdminDashboard = ({ route, navigation }) => {
+  const { tabdata } = route.params || {};
   const { colors } = useTheme();
   const { isDarkMode } = useContext(ThemeContext);
   const [users, setUsers] = useState([]);
@@ -98,18 +99,10 @@ const AdminDashboard=({route, navigation }) =>{
   const scrollRef = useRef(null);
   const [index, setIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-useEffect(() => {
-  if(tabdata){
-    console.log(tabData);
-    
-    setCurrentTab(tabdata)
-  }
-
-  
-}, [tabdata])
+  const [refreshing, setRefreshing] = useState(false);
 
   // Load notifications from AsyncStorage
-  const loadNotificationsFromStorage = async () => {
+  const loadNotificationsFromStorage = useCallback(async () => {
     try {
       const storedNotifications = await AsyncStorage.getItem('adminNotifications');
       console.log('Loaded notifications from AsyncStorage:', storedNotifications);
@@ -118,50 +111,246 @@ useEffect(() => {
       console.error('Failed to load notifications from AsyncStorage:', error.message);
       return [];
     }
-  };
- useEffect(() => {
-  if (!adminUser?._id) return;
+  }, []);
 
-  registerUser(adminUser._id);
-
-  const unsubscribe = listenToApprovedRequests((data) => {
-    // Optional toast or any UI update
-    Toast.show({
-      type: 'success',
-      text1: 'New Redemption Request',
-      text2: 'You have a new redemption request',
-    });
-
-    fetchRedemptions(adminUser._id); // refresh UI
-  });
-
-  return () => {
-    unsubscribe(); 
-  };
-}, [adminUser]);
+  
   // Save notifications to AsyncStorage
-  const saveNotificationsToStorage = async (updatedNotifications) => {
+  const saveNotificationsToStorage = useCallback(async (updatedNotifications) => {
     try {
       await AsyncStorage.setItem('adminNotifications', JSON.stringify(updatedNotifications));
       console.log('Notifications saved to AsyncStorage:', updatedNotifications);
     } catch (error) {
       console.error('Failed to save notifications to AsyncStorage:', error.message);
     }
-  };
+  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        Alert.alert('Exit App', 'Do you really want to exit?', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'OK', onPress: () => BackHandler.exitApp() },
-        ]);
-        return true;
+  // Logout function
+  const logout = useCallback(async () => {
+    try {
+      await AsyncStorage.multiRemove(['userInfo', 'userToken']);
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      Toast.show({
+        type: 'success',
+        text1: 'Logged Out',
+        text2: 'You have been logged out.',
       });
-      return () => backHandler.remove();
-    }, [])
+    } catch (error) {
+      console.error('Logout error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Logout Failed',
+        text2: 'Failed to log out: ' + error.message,
+      });
+    }
+  }, [navigation]);
+
+  // Load admin user
+  const loadAdminUser = useCallback(
+    async (retries = 3) => {
+      try {
+        setLoading(true);
+        const userInfo = await AsyncStorage.getItem('userInfo');
+        const parsedUser = userInfo ? JSON.parse(userInfo) : defaultAdminUser;
+        setAdminUser(parsedUser);
+
+        const userToken = await AsyncStorage.getItem('userToken');
+        if (!userToken) throw new Error('No user token found');
+
+        // Fetch admin data
+        const response = await axios.get(`${API_BASE_URL}/fetchdata/getadmin/${parsedUser._id}`, {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
+
+        const fetchedUser = response.data?.data || {};
+        const updatedUser = {
+          _id: fetchedUser._id || parsedUser._id,
+          name: fetchedUser.name || parsedUser.name,
+          mobile: fetchedUser.mobile || parsedUser.mobile,
+          uniqueCode: fetchedUser.uniqueCode || parsedUser.uniqueCode,
+          role: fetchedUser.role || parsedUser.role,
+          validate: fetchedUser.validate ?? parsedUser.validate,
+          location: fetchedUser.location || parsedUser.location,
+          points: fetchedUser.points || parsedUser.points || 0,
+          createdAt: fetchedUser.createdAt || parsedUser.createdAt,
+          adminId: fetchedUser.adminId || parsedUser.adminId,
+        };
+
+        if (updatedUser.role !== 'admin' || updatedUser.validate === false) {
+          await logout();
+          return;
+        }
+
+        setAdminUser(updatedUser);
+        await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
+
+        const storedNotifications = await loadNotificationsFromStorage();
+        setNotifications(storedNotifications);
+
+        await Promise.all([
+          fetchUsers(updatedUser._id),
+          fetchRewards(updatedUser._id),
+          fetchRedemptions(updatedUser._id),
+          fetchInvoice(updatedUser._id),
+        ]);
+      } catch (error) {
+        if (retries > 0) {
+          console.warn(`Retrying loadAdminUser (${retries} retries left)...`);
+          return loadAdminUser(retries - 1);
+        }
+        console.error('Load admin user error:', error.message);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: error.response?.data?.message || 'Failed to load user info',
+        });
+        await logout();
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [fetchUsers, fetchRewards, fetchRedemptions, fetchInvoice, loadNotificationsFromStorage, logout]
   );
 
+  // Fetch users
+  const fetchUsers = useCallback(async (adminId) => {
+    try {
+      if (!adminId) throw new Error('Invalid Admin. Please relogin');
+      setLoading(true);
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await axios.get(`${API_BASE_URL}/fetchdata/admin/${adminId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsers(response.data || []);
+    } catch (error) {
+      console.error('Fetch users error:', error.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.error || 'Failed to fetch users',
+      });
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch rewards
+  const fetchRewards = useCallback(async (adminId) => {
+    try {
+      if (!adminId) throw new Error('Invalid Admin. Please relogin');
+      setLoading(true);
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await axios.get(`${API_BASE_URL}/fetchdata/rewards/${adminId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setRewards(response.data || []);
+    } catch (error) {
+      console.error('Fetch rewards error:', error.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.error || 'Failed to fetch rewards',
+      });
+      setRewards([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch redemptions
+  const fetchRedemptions = useCallback(async (adminId) => {
+    try {
+      if (!adminId) throw new Error('Invalid Admin. Please relogin');
+      setLoading(true);
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await axios.get(`${API_BASE_URL}/fetchdata/redemptions/${adminId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setRedemptions(response.data || []);
+      console.log('Redemptions fetched:', response.data);
+    } catch (error) {
+      console.error('Fetch redemptions error:', error.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.error || 'Failed to fetch redemptions',
+      });
+      setRedemptions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch invoice
+  const fetchInvoice = useCallback(async (adminId) => {
+    try {
+      if (!adminId) throw new Error('Invalid Admin. Please relogin');
+      setLoading(true);
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await axios.post(
+        `${API_BASE_URL}/fetchdata/fetchInvoice`,
+        { adminId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const invoiceCount = response.data?.invoiceCount ?? 1;
+      setInvoice(invoiceCount + 1);
+    } catch (error) {
+      console.error('Fetch invoice error:', error.message);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.error || 'Failed to fetch invoice',
+      });
+      setInvoice(1);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadAdminUser();
+  }, [loadAdminUser]);
+
+  // Tab change
+  useEffect(() => {
+    if (tabdata) {
+      console.log('Tab data:', tabdata);
+      setCurrentTab(tabdata);
+    }
+  }, [tabdata]);
+
+  // Socket for redemption requests
+  useEffect(() => {
+    if (!adminUser?._id) return;
+
+    registerUser(adminUser._id);
+
+    const unsubscribe = listenToApprovedRequests((data) => {
+      Toast.show({
+        type: 'success',
+        text1: 'New Redemption Request',
+        text2: 'You have a new redemption request',
+      });
+      fetchRedemptions(adminUser._id);
+    });
+
+    return () => unsubscribe();
+  }, [adminUser?._id, fetchRedemptions]);
+
+  // Periodic validation check
+  useEffect(() => {
+    if (!adminUser?._id) return;
+
+    const interval = setInterval(() => {
+      loadAdminUser();
+    }, 60000); // Every 60 seconds
+
+    return () => clearInterval(interval);
+  }, [adminUser?._id, loadAdminUser]);
+
+  // Carousel auto-scroll
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isPaused && rewards.length > 0) {
@@ -177,127 +366,33 @@ useEffect(() => {
     return () => clearInterval(interval);
   }, [index, isPaused, rewards]);
 
+  // Pull-to-refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadAdminUser();
+  }, [loadAdminUser]);
+
   const handleTouchStart = () => setIsPaused(true);
   const handleTouchEnd = () => setIsPaused(false);
 
-  useEffect(() => {
-    const loadAdminUser = async () => {
-      try {
-        setLoading(true);
-        const userInfo = await AsyncStorage.getItem('userInfo');
-        const parsedUser = userInfo ? JSON.parse(userInfo) : defaultAdminUser;
-        setAdminUser(parsedUser);
-        const storedNotifications = await loadNotificationsFromStorage();
-        setNotifications(storedNotifications);
-        await Promise.all([
-          fetchUsers(parsedUser._id),
-          fetchRewards(parsedUser._id),
-          fetchRedemptions(parsedUser._id),
-          fetchInvoice(parsedUser._id),
+  useFocusEffect(
+    useCallback(() => {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert('Exit App', 'Do you really want to exit?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'OK', onPress: () => BackHandler.exitApp() },
         ]);
-      } catch (error) {
-        Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: 'Failed to load user info: ' + error.message,
-        });
-        setAdminUser(defaultAdminUser);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadAdminUser();
-  }, []);
-
-  const fetchUsers = useCallback(async (adminId) => {
-    try {
-      if (!adminId) throw new Error('Invalid Admin. Please relogin');
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await axios.get(`${API_BASE_URL}/fetchdata/admin/${adminId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        return true;
       });
-      setUsers(response.data || []);
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: error.response?.data?.error || 'Failed to fetch users',
-      });
-      setUsers([]);
-    }
-  }, []);
-
-  const fetchRewards = useCallback(async (adminId) => {
-    try {
-      if (!adminId) throw new Error('Invalid Admin. Please relogin');
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await axios.get(`${API_BASE_URL}/fetchdata/rewards/${adminId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setRewards(response.data || []);
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to fetch rewards: ' + error.message,
-      });
-      setRewards([]);
-    }
-  }, []);
-
-  
-  const fetchRedemptions = useCallback(async (adminId) => {
-    try {
-      if (!adminId) throw new Error('Invalid Admin. Please relogin');
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await axios.get(`${API_BASE_URL}/fetchdata/redemptions/${adminId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-  
-       setRedemptions(response.data||[]);
-     console.log(response.data);
-     
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to fetch redemptions: ' + error.message,
-      });
-     
-    }
-  }, []);
-
-  const fetchInvoice = useCallback(async (adminId) => {
-    try {
-      if (!adminId) throw new Error('Invalid Admin. Please relogin');
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await axios.post(
-        `${API_BASE_URL}/fetchdata/fetchInvoice`,
-        { adminId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const invoiceCount = response.data?.invoiceCount ?? 1;
-      setInvoice(invoiceCount + 1);
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to fetch invoice: ' + error.message,
-      });
-      setInvoice(1);
-    }
-  }, []);
+      return () => backHandler.remove();
+    }, [])
+  );
 
   const makepayment = async (invoice, amount, rewardPercentage, expiry, receiverCode) => {
     try {
       const userInfoString = await AsyncStorage.getItem('userInfo');
       if (!userInfoString) {
-        Toast.show({
-          type: 'error',
-          text1: 'Session Expired',
-          text2: 'Please log in again',
-        });
-        navigation.navigate('Login');
+        await logout();
         return;
       }
       const userInfo = JSON.parse(userInfoString);
@@ -322,7 +417,6 @@ useEffect(() => {
         text2: `${points} Coins transferred successfully`,
       });
 
-      // Add notification to state and AsyncStorage
       const newNotification = {
         _id: `${Date.now()}-${invoice}`,
         message: `Sent ${points} coins for payment #${invoice} to ${receiverUniquecode}`,
@@ -344,8 +438,7 @@ useEffect(() => {
         receiverUniquecode,
         amount,
         senderName: userInfo.name || userInfo.uniqueCode || 'You',
-        data:currentTab
-      
+        data: currentTab,
       });
     } catch (error) {
       Toast.show({
@@ -358,8 +451,8 @@ useEffect(() => {
 
   const handleTabChange = (tab) => {
     setCurrentTab(tab);
-       setEditUser(null);
-         setImagePreview(null);
+    setEditUser(null);
+    setImagePreview(null);
     setEditingRewardId(null);
   };
 
@@ -448,7 +541,7 @@ useEffect(() => {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Failed to save user: ' + error.message,
+        text2: error.response?.data?.error || 'Failed to save user',
       });
     }
   };
@@ -489,7 +582,7 @@ useEffect(() => {
       return;
     }
     const user = users.find((u) => u._id === userId);
- setModalMessage(`Send ${tokenAmount} tokens to ${user.name}?`);
+    setModalMessage(`Send ${tokenAmount} tokens to ${user.name}?`);
     setModalAction(() => async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
@@ -515,13 +608,13 @@ useEffect(() => {
         setTokenAmount('');
         setSendTokenUserId(null);
         setModalVisible(false);
-          navigation.navigate('SuccessScreen', {
-    points: tokenAmount,
-        receiverUniquecode:user.name,
-        amount:null,
-        senderName: adminUser.name || adminUser.uniqueCode || 'You',
-        data:currentTab
-      });
+        navigation.navigate('SuccessScreen', {
+          points: tokenAmount,
+          receiverUniquecode: user.name,
+          amount: null,
+          senderName: adminUser.name || adminUser.uniqueCode || 'You',
+          data: currentTab,
+        });
         Toast.show({
           type: 'success',
           text1: 'Tokens Sent',
@@ -657,35 +750,32 @@ useEffect(() => {
     }
   };
 
-  const handlereadNotification = async (notificationId) => {
-  try {
-    // Update the specific notification's "read" property
-    const updatedNotifications = notifications.map((n) =>
-      n._id === notificationId ? { ...n, read: true } : n
-    );
-
-    setNotifications(updatedNotifications);
-    await saveNotificationsToStorage(updatedNotifications);
-
-    Toast.show({
-      type: 'success',
-      text1: 'Notification Read',
-      text2: 'Notification marked as read successfully',
-    });
-  } catch (error) {
-    Toast.show({
-      type: 'error',
-      text1: 'Error',
-      text2: 'Failed to mark notification as read: ' + error.message,
-    });
-  }
-};
-
+  const handleReadNotification = async (notificationId) => {
+    try {
+      const updatedNotifications = notifications.map((n) =>
+        n._id === notificationId ? { ...n, read: true } : n
+      );
+      setNotifications(updatedNotifications);
+      await saveNotificationsToStorage(updatedNotifications);
+      Toast.show({
+        type: 'success',
+        text1: 'Notification Read',
+        text2: 'Notification marked as read successfully',
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to mark notification as read: ' + error.message,
+      });
+    }
+  };
 
   const handleDismissAllNotifications = async () => {
     setModalMessage('Clear all notifications?');
     setModalAction(() => async () => {
-      try {  setModalVisible(false);
+      try {
+        setModalVisible(false);
         setNotifications([]);
         await saveNotificationsToStorage([]);
         Toast.show({
@@ -704,161 +794,98 @@ useEffect(() => {
     setModalVisible(true);
   };
 
- const handleApproveRedemption = async (redemptionId) => {
-  try {
-    const token = await AsyncStorage.getItem('userToken');
-
-    // API call to approve redemption
-    await axios.put(
-      `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/approve`,
-      {},
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    // Update local redemptions state
-    setRedemptions((prev) =>
-      prev.map((r) =>
-        r._id === redemptionId ? { ...r, status: 'approved' } : r
-      )
-    );
-
-    // Show success toast
-    Toast.show({
-      type: 'success',
-      text1: 'Redemption Approved',
-      text2: 'Redemption request approved successfully',
-    });
-
-    // Create a new notification based on redemption info
-    const redemption = redemptions.find((r) => r._id === redemptionId);
-    if (!redemption) return; // Extra safety
-
-    const { userId, rewardId } = redemption;
-
-    const newNotification = {
-      _id: `${Date.now()}-${redemptionId}`,
-      message: `${userId?.name || 'User'} (code: ${userId?.userUniqueCode || 'N/A'}) redemption for '${rewardId?.name || 'Reward'}' (${rewardId?.pointsRequired || 0} points) was ✅ Approved successfully.`,
-      createdAt: new Date().toISOString(),
-      read: false,
-    };
-
-    // Update notifications
-    const updatedNotifications = [...notifications, newNotification];
-    setNotifications(updatedNotifications);
-    await saveNotificationsToStorage(updatedNotifications);
-  } catch (error) {
-    Toast.show({
-      type: 'error',
-      text1: 'Error',
-      text2: 'Failed to approve redemption: ' + error.message,
-    });
-  }
-};
-
-const handleRejectRedemption = async (redemptionId) => {
-  try {
-    const token = await AsyncStorage.getItem('userToken');
-
-    // Find the redemption first BEFORE updating state
-    const redemption = redemptions.find((r) => r._id === redemptionId);
-    if (!redemption) {
-      throw new Error('Redemption not found.');
-    }
-
-    const { userId, rewardId } = redemption;
-
-    // API call to reject the redemption
-    await axios.put(
-      `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/reject`,
-      {},
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    // Update local redemptions state
-    setRedemptions((prev) =>
-      prev.map((r) =>
-        r._id === redemptionId ? { ...r, status: 'rejected' } : r
-      )
-    );
-
-    // Create a notification
-    const newNotification = {
-      _id: `${Date.now()}-${redemptionId}`,
-      message: `${userId?.name || 'User'} (code: ${userId?.userUniqueCode || 'N/A'}) redemption for '${rewardId?.name || 'Reward'}' (${rewardId?.pointsRequired || 0} points) was ❌ Rejected successfully.`,
-      createdAt: new Date().toISOString(),
-      read: false,
-    };
-
-    // Update notifications
-    const updatedNotifications = [...notifications, newNotification];
-    setNotifications(updatedNotifications);
-    await saveNotificationsToStorage(updatedNotifications);
-
-    // Show toast
-    Toast.show({
-      type: 'success',
-      text1: 'Redemption Rejected',
-      text2: 'Redemption request rejected successfully',
-    });
-  } catch (error) {
-    Toast.show({
-      type: 'error',
-      text1: 'Error',
-      text2: 'Failed to reject redemption: ' + error.message,
-    });
-  }
-};
-const [refreshing, setRefreshing] = useState(false);
-
-const onRefresh = useCallback(() => {
-  setRefreshing(true); // Start the pull-to-refresh spinner
-
-  const loadAdminUser = async () => {
+  const handleApproveRedemption = async (redemptionId) => {
     try {
-      setLoading(true);
-      const userInfo = await AsyncStorage.getItem('userInfo');
-      const parsedUser = userInfo ? JSON.parse(userInfo) : defaultAdminUser;
-
-      setAdminUser(parsedUser);
-
-      const storedNotifications = await loadNotificationsFromStorage();
-      setNotifications(storedNotifications);
-
-      await Promise.all([
-        fetchUsers(parsedUser._id),
-        fetchRewards(parsedUser._id),
-        fetchRedemptions(parsedUser._id),
-        fetchInvoice(parsedUser._id),
-      ]);
+      const token = await AsyncStorage.getItem('userToken');
+      await axios.put(
+        `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/approve`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setRedemptions((prev) =>
+        prev.map((r) => (r._id === redemptionId ? { ...r, status: 'approved' } : r))
+      );
+      Toast.show({
+        type: 'success',
+        text1: 'Redemption Approved',
+        text2: 'Redemption request approved successfully',
+      });
+      const redemption = redemptions.find((r) => r._id === redemptionId);
+      if (!redemption) return;
+      const { userId, rewardId } = redemption;
+      const newNotification = {
+        _id: `${Date.now()}-${redemptionId}`,
+        message: `${userId?.name || 'User'} (code: ${userId?.userUniqueCode || 'N/A'}) redemption for '${
+          rewardId?.name || 'Reward'
+        }' (${rewardId?.pointsRequired || 0} points) was ✅ Approved successfully.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+      const updatedNotifications = [...notifications, newNotification];
+      setNotifications(updatedNotifications);
+      await saveNotificationsToStorage(updatedNotifications);
     } catch (error) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Failed to load user info: ' + error.message,
+        text2: error.response?.data?.error || 'Failed to approve redemption',
       });
-      setAdminUser(defaultAdminUser);
-    } finally {
-      setLoading(false);
-      setRefreshing(false); // ✅ Stop the spinner
     }
   };
 
-  loadAdminUser();
-}, []);
-
+  const handleRejectRedemption = async (redemptionId) => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const redemption = redemptions.find((r) => r._id === redemptionId);
+      if (!redemption) {
+        throw new Error('Redemption not found.');
+      }
+      const { userId, rewardId } = redemption;
+      await axios.put(
+        `${API_BASE_URL}/fetchdata/redemption/${redemptionId}/reject`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setRedemptions((prev) =>
+        prev.map((r) => (r._id === redemptionId ? { ...r, status: 'rejected' } : r))
+      );
+      const newNotification = {
+        _id: `${Date.now()}-${redemptionId}`,
+        message: `${userId?.name || 'User'} (code: ${userId?.userUniqueCode || 'N/A'}) redemption for '${
+          rewardId?.name || 'Reward'
+        }' (${rewardId?.pointsRequired || 0} points) was ❌ Rejected successfully.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+      const updatedNotifications = [...notifications, newNotification];
+      setNotifications(updatedNotifications);
+      await saveNotificationsToStorage(updatedNotifications);
+      Toast.show({
+        type: 'success',
+        text1: 'Redemption Rejected',
+        text2: 'Redemption request rejected successfully',
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.error || 'Failed to reject redemption',
+      });
+    }
+  };
 
   // Calculate unread notifications for badge
-const unreadNotificationsCount = [
-  ...notifications.filter((n) => !n.read),
-  ...redemptions.filter((r) => r.status === 'pending'),
-].length;
+  const unreadNotificationsCount = [
+    ...notifications.filter((n) => !n.read),
+    ...redemptions.filter((r) => r.status === 'pending'),
+  ].length;
 
   const renderTabContent = () => {
     switch (currentTab) {
       case 'home':
         return (
           <Home
-          setAdminUser={setAdminUser}
+            setAdminUser={setAdminUser}
             adminUser={adminUser}
             users={users}
             rewards={rewards}
@@ -929,7 +956,7 @@ const unreadNotificationsCount = [
             saveNotificationsToStorage={saveNotificationsToStorage}
             redemptions={redemptions}
             handleClearNotification={handleClearNotification}
-            handlereadNotification={handlereadNotification}
+            handleReadNotification={handleReadNotification}
             handleDismissAllNotifications={handleDismissAllNotifications}
             handleApproveRedemption={handleApproveRedemption}
             handleRejectRedemption={handleRejectRedemption}
@@ -955,14 +982,12 @@ const unreadNotificationsCount = [
   const tabData = [{ key: 'tab-content', content: renderTabContent() }];
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f4f8' }]}
-    >
-      {/* {loading && (
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f4f8' }]}>
+      {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      )} */}
+      )}
       <Modal
         animationType="fade"
         transparent={true}
@@ -1010,22 +1035,19 @@ const unreadNotificationsCount = [
       </Modal>
       <FlatList
         data={tabData}
-        renderItem={({ item }) => (
-          <View style={styles.scrollContentContainer}>{item.content}</View>
-        )}
+        renderItem={({ item }) => <View style={styles.scrollContentContainer}>{item.content}</View>}
         keyExtractor={(item) => item.key}
         showsVerticalScrollIndicator={false}
         bounces={true}
         style={styles.scrollContent}
-        
-                  refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor="#2196F3"
-                  colors={['#2196F3']}
-                />
-              }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2196F3"
+            colors={['#2196F3']}
+          />
+        }
       />
       <View
         style={[
@@ -1083,7 +1105,7 @@ const unreadNotificationsCount = [
       </View>
     </View>
   );
-}
+};
 
 export default memo(AdminDashboard);
 
@@ -1166,16 +1188,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  card: {
-    marginVertical: 10,
-    borderRadius: 16,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    padding: 15,
-  },
   actionButton: {
     marginHorizontal: 8,
     marginVertical: 8,
@@ -1194,17 +1206,6 @@ const styles = StyleSheet.create({
   buttonContainer: {
     ...(isWeb ? { transition: 'transform 0.2s ease' } : {}),
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginVertical: 20,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-  },
   cardText: {
     fontSize: 18,
     marginVertical: 8,
@@ -1216,107 +1217,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '600',
   },
-  emptyText: {
-    textAlign: 'center',
-    fontSize: 18,
-    marginVertical: 15,
-    fontWeight: '500',
-  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
-  },
-  carousel: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-  },
-  carouselItem: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    justifyContent: 'flex-end',
-    padding: 15,
-    backgroundColor: '#f0f0f0',
-  },
-  textOverlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 10,
-    borderRadius: 12,
-    position: 'absolute',
-    bottom: 10,
-    left: 10,
-    right: 10,
-  },
-  carouselText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  carouselSubText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  rewardCard: {
-    margin: 10,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  rewardCardImage: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    justifyContent: 'flex-end',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    overflow: 'hidden',
-  },
-  rewardCardImageStyle: {
-    borderRadius: 12,
-  },
-  rewardCardText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  rewardCardSubText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  rewardImage: {
-    width: 140,
-    height: 140,
-    borderRadius: 12,
-    marginBottom: 10,
-    resizeMode: 'contain',
-  },
-  notificationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    marginVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  notificationText: {
-    fontSize: 18,
-    fontWeight: '500',
-    lineHeight: 24,
-  },
-  notificationDate: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginTop: 6,
-  },
-  redemptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 10,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
   },
 });

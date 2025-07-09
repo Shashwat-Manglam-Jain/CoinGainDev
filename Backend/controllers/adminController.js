@@ -453,6 +453,26 @@ const getAdminRelatedPayments = async (req, res) => {
   }
 };
 
+const getAdmin = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+
+    if (!adminId) {
+      return res.status(400).json({ message: 'adminId not found. Please login.' });
+    }
+
+    const data = await User.findById(adminId);
+
+    if (!data) {
+      return res.status(404).json({ message: 'Admin not found.' });
+    }
+
+    res.status(200).json({ data });
+  } catch (error) {
+    console.error('Error fetching admin:', error.message);
+    res.status(500).json({ message: 'Server error. Please try again later.' });
+  }
+};
 
 //  Export all functions
 module.exports = {
@@ -471,5 +491,6 @@ module.exports = {
   makepayment,
   fetchInvoice,
   updateAdmin,
-  getAdminRelatedPayments 
+  getAdminRelatedPayments ,
+  getAdmin
 };

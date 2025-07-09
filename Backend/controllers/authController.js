@@ -136,6 +136,7 @@ const loginUser = async (req, res) => {
         role: user.role,
         uniqueCode: user.uniqueCode || user.userUniqueCode,
         adminId: user.adminId,
+        validate:user.validate
       },
     });
   } catch (error) {

@@ -278,7 +278,8 @@ const handleRegister = async () => {
       borderColor: colors.primary,
       borderWidth: 1.5,
       borderRadius: 16,
-      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+      ,marginBottom:70
     },
   ]}
   textColor={isDarkMode ? '#FFFFFF' : colors.primary}

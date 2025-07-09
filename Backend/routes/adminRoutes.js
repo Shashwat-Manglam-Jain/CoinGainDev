@@ -19,7 +19,8 @@ const {
   makepayment,
   fetchInvoice,
   updateAdmin,
-  getAdminRelatedPayments
+  getAdminRelatedPayments,
+  getAdmin
 } = require('../controllers/adminController');
 
 const verifyToken = require('../middleware/verifyToken');
@@ -29,6 +30,8 @@ router.get('/admins', getAllAdmins);
 
 // GET - Fetch users created by a specific admin
 router.get('/admin/:adminId', verifyToken, getAllUsers);
+
+router.get('/getadmin/:adminId', getAdmin);
 
 // PUT - Update a specific user
 router.put('/user/:id', verifyToken, updateUser);

@@ -20,7 +20,7 @@ export default function ReceiverSuccess({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* <LottieView
+      <LottieView
         source={require('../../../assets/success.json')}
         autoPlay
         loop={false}
@@ -38,7 +38,7 @@ export default function ReceiverSuccess({ route, navigation }) {
         </Text>
         <Text style={styles.infoText}>From: {senderName}</Text>
         <Text style={styles.infoText}>To You: {receiverUniquecode}</Text>
-      </View> */}
+      </View>
     </View>
   );
 }

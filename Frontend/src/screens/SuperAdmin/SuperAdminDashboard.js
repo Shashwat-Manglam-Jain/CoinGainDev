@@ -49,10 +49,11 @@ const ButtonText = ({ children, style }) => (
 
 const dummySuperAdmin = {
   id: '01',
-  name: 'Shashwat Manglam Jain',
-  mobile: '9424422001',
-  uniqueCode: 'SUPER001',
+  name: 'Mr. Varun Singh',
+  mobile: '9724139675',
+  location: 'Bhopal',
   role: 'SuperAdmin',
+  Joined:'25 May 2025'
 };
 
 export default function SuperAdminDashboard({ navigation }) {
@@ -71,7 +72,43 @@ export default function SuperAdminDashboard({ navigation }) {
 
   const debouncedSetSearchAdmin = (value) => setSearchAdmin((value))
 
-  // Map API data to include status field
+  const fetchSuperAdmin =useCallback(
+    async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/superadmin/getSuperAdmin`);
+
+    if (res.data && res.data.superadmin) {
+      const data = res.data.superadmin;
+
+      setSuperAdmin({
+        id: data._id || dummySuperAdmin.id,
+        name: data.name || dummySuperAdmin.name,
+        mobile: data.mobile || dummySuperAdmin.mobile,
+        location: data.location || dummySuperAdmin.location,
+        role: data.role || dummySuperAdmin.role,
+        Joined: data.createdAt
+          ? new Date(data.createdAt).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : dummySuperAdmin.Joined,
+      });
+    }
+
+    console.log('Success:', 'Successfully fetched superAdmin');
+  } catch (error) {
+    console.error('Failed to fetch superAdmin:', error);
+    Toast.error('Failed to fetch superAdmin');
+  }
+},
+    [fetchSuperAdmin],
+  )
+  
+
+
+
+
   const mapAdmins = (apiAdmins) =>
     apiAdmins.map((admin) => ({
       id: admin._id,
@@ -127,26 +164,28 @@ export default function SuperAdminDashboard({ navigation }) {
   }, []);
 
   useEffect(() => {
+    fetchSuperAdmin()
     fetchAllAdmins();
-  }, [fetchAllAdmins]);
+  }, [fetchAllAdmins,fetchSuperAdmin]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await fetchAllAdmins();
-      // Add a slight delay to ensure RefreshControl is visible during testing
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error('Refresh admins error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to refresh admins: ' + error.message,
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetchAllAdmins]);
+const onRefresh = useCallback(async () => {
+  setRefreshing(true);
+  try {
+    await Promise.all([fetchSuperAdmin(), fetchAllAdmins()]);
+    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } catch (error) {
+    console.error('Refresh admins error:', error);
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Failed to refresh admins: ' + error.message,
+    });
+  } finally {
+    setRefreshing(false);
+  }
+}, [fetchAllAdmins, fetchSuperAdmin]);
+
 
   const handleLogout = async () => {
     try {
@@ -171,35 +210,61 @@ export default function SuperAdminDashboard({ navigation }) {
     setEditAdmin({
       name: superAdmin?.name || '',
       mobile: superAdmin?.mobile || '',
+      location:superAdmin?.location  || '',
     });
     setEditModalVisible(true);
   };
 
-  const handleSaveAdmin = () => {
-    if (!editAdmin?.name.trim()) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Name cannot be empty',
-      });
-      return;
-    }
-    if (!/^\d{10}$/.test(editAdmin?.mobile)) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Mobile number must be 10 digits',
-      });
-      return;
-    }
-    setSuperAdmin({ ...superAdmin, name: editAdmin.name, mobile:editAdmin.mobile });
+const handleSaveAdmin = async () => {
+  if (!editAdmin?.name.trim()) {
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Name cannot be empty',
+    });
+    return;
+  }
+
+  if (!/^\d{10}$/.test(editAdmin?.mobile)) {
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Mobile number must be 10 digits',
+    });
+    return;
+  }
+
+  try {
+    const res = await axios.put(`${API_BASE_URL}/superadmin/update/${superAdmin.id}`, {
+      name: editAdmin.name,
+      mobile: editAdmin.mobile,
+      location: editAdmin.location,
+    });
+
+    setSuperAdmin({
+      ...superAdmin,
+      name: res.data.superadmin.name,
+      mobile: res.data.superadmin.mobile,
+      location: res.data.superadmin.location,
+    });
+
     setEditModalVisible(false);
+
     Toast.show({
       type: 'success',
       text1: 'Admin Updated',
       text2: 'Super admin details saved successfully',
     });
-  };
+  } catch (error) {
+    Toast.show({
+      type: 'error',
+      text1: 'Update Failed',
+      text2: error.response?.data?.message || 'Something went wrong.',
+    });
+    console.error('Update error:', error);
+  }
+};
+
 
   const handleToggleAdminStatus = async (adminId, newStatus) => {
     try {
@@ -341,10 +406,13 @@ export default function SuperAdminDashboard({ navigation }) {
                   Role: {superAdmin?.role || 'N/A'}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.text || '#000' }]}>
-                  Unique Code: {superAdmin?.uniqueCode || 'N/A'}
+                Location: {superAdmin?.location || 'N/A'}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.text || '#000' }]}>
                   Total Admins: {admins.filter((admin) => admin.status === 'approved').length}
+                </Text>
+                  <Text style={[styles.cardText, { color: colors.text || '#000' }]}>
+               Joined: {superAdmin?.Joined || 'N/A'}
                 </Text>
               </Card.Content>
             </View>
@@ -617,6 +685,17 @@ export default function SuperAdminDashboard({ navigation }) {
               theme={{ colors: { text: colors.text || '#000', primary: colors.primary || '#6200EE' } }}
               accessible
               accessibilityLabel="Super admin mobile"
+            />
+              <TextInput
+              label="Location"
+              value={editAdmin?.location || ''}
+              onChangeText={(text) => setEditAdmin({ ...editAdmin, location: text })}
+              style={styles.input}
+              placeholderTextColor={colors.placeholder || '#999'}
+              underlineColorAndroid="transparent"
+              theme={{ colors: { text: colors.text || '#000', primary: colors.primary || '#6200EE' } }}
+              accessible
+              accessibilityLabel="Super admin location"
             />
             <View style={styles.buttonRow}>
               <Button

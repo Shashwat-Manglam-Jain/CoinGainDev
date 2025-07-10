@@ -53,31 +53,49 @@ export default function LoginScreen({ navigation }) {
   );
 
 const handleLogin = async () => {
-  setError(""); 
+  setError("");
   setLoading(true);
 
-  if (mobile === "9424422001" && password === "Shashwat") {
-    const token = `${mobile}${password}${Date.now()}`;
-    const user = {
-      id: "01",
-      name: "Shashwat Manglam Jain",
-      mobile: "9424422001",
-      uniqueCode: "SUPER001",
-      role: "SuperAdmin",
-    };
-
-    await AsyncStorage.setItem("userToken", token);
-    await AsyncStorage.setItem("userInfo", JSON.stringify(user));
-
-    Toast.show({ type: "success", text1: "SuperAdmin login successful!" });
-
-    navigation.replace("SuperAdminDashboard");
-    setLoading(false);
-    return;
-  }
-
-  // Normal Login
   try {
+   
+    const res = await axios.get(`${API_BASE_URL}/superadmin/getSuperAdmin`);
+
+    if (res.data?.superadmin) {
+      const data = res.data.superadmin;
+console.log(data);
+
+    if (
+  data.role === "superadmin" &&
+  data.mobile === mobile &&
+  data.plainPassword === password
+)
+ {
+        const token = `${mobile}${password}${Date.now()}`;
+        const user = {
+          id: data._id,
+          name: data.name,
+          mobile: data.mobile,
+          location: data.location,
+          role: data.role,
+          Joined: data.createdAt
+            ? new Date(data.createdAt).toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })
+            : "Unknown",
+        };
+
+        await AsyncStorage.setItem("userToken", token);
+        await AsyncStorage.setItem("userInfo", JSON.stringify(user));
+
+        Toast.show({ type: "success", text1: "SuperAdmin login successful!" });
+        navigation.replace("SuperAdminDashboard");
+        return;
+      }
+    }
+
+    // Normal Login fallback
     const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
       mobile,
       password,
@@ -91,16 +109,18 @@ const handleLogin = async () => {
 
     Toast.show({ type: "success", text1: "Login successful!" });
 
-    navigation.replace(user.role === "admin" ? "AdminDashboard" : "UserDashboard");
+    navigation.replace(
+      user.role === "admin" ? "AdminDashboard" : "UserDashboard"
+    );
   } catch (err) {
-    const message = err.response?.data?.message || "Login failed. Please try again.";
+    const message =
+      err.response?.data?.message || "Login failed. Please try again.";
     setError(message);
     Toast.show({ type: "error", text1: "Login Failed", text2: message });
   } finally {
     setLoading(false);
   }
 };
-
 
 
   return (

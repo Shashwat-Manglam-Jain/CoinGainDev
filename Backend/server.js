@@ -23,6 +23,11 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/fetchdata', require('./routes/adminRoutes'));
 app.use('/Userfetch', require('./routes/userRoutes'));
 app.use('/superadmin', require('./routes/SuperAdminRoutes'));
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: "Running CoinGain Backend Successfully..."
+  });
+});
 
 setupSocket(server);
 // Start server

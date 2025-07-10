@@ -15,7 +15,7 @@ const redemptionSchema = new mongoose.Schema(
     },
     redeemedAt: { type: Date, default: Date.now },
     status: { 
-      type: String, 
+      type: String,  
       enum: ['pending', 'approved', 'rejected'], 
       default: 'pending' 
     },

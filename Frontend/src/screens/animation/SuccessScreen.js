@@ -9,7 +9,7 @@ export default function SuccessScreen({ route, navigation }) {
     const timer = setTimeout(() => {
       navigation.replace('AdminDashboard',{tabdata:data
       });
-    }, 4000);
+    }, 4000);    
 
     return () => clearTimeout(timer);
   }, [navigation]);

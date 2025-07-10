@@ -29,6 +29,7 @@ router.delete('/notifications/:id', verifyToken, deleteNotification);
 router.put('/notifications/mark-all-read', verifyToken, markAllNotificationsRead);
 router.put('/notifications/mark-read', verifyToken, markNotificationRead);
 
+
 router.get('/fetchexpiryofToken/:adminId/:userID', verifyToken,   fetchexpiryofToken);
 
 router.get('/check-expiration/:adminId/:userID',    checkExpiration);

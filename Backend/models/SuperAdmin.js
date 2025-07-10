@@ -22,7 +22,7 @@ const SuperadminSchema = new mongoose.Schema(
 
     plainPassword: {
       type: String,
-    },
+    }, 
 
     role: {
       type: String,

@@ -107,7 +107,7 @@ console.log(data);
     await AsyncStorage.setItem("userToken", token);
     await AsyncStorage.setItem("userInfo", JSON.stringify(user));
 
-    Toast.show({ type: "success", text1: "Login successful!" });
+    Toast.show({ type: "success", text1: "Login successful!" }); 
 
     navigation.replace(
       user.role === "admin" ? "AdminDashboard" : "UserDashboard"
